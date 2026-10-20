@@ -141,8 +141,8 @@ if (fs.existsSync(clientDistPath)) {
 
 // Start Server conditionally (only call listen in standalone mode, not in Vercel serverless)
 if (!process.env.VERCEL) {
-  app.listen(PORT, () => {
-    console.log(`🚀 [AniSphere Fullstack] Running on http://localhost:${PORT}`);
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`🚀 [AniSphere Fullstack] Running on port ${PORT} (0.0.0.0)`);
     console.log(`🕒 [IST Clock] Indian Standard Time initialized: ${new Date().toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata' })}`);
     syncService.startDailyScheduler();
     connectDB().catch((err) => console.error('DB connect error:', err));
