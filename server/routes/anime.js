@@ -242,7 +242,7 @@ const normalizeSearchQuery = (q) => {
 // Includes 7-Day Rolling Broadcast Window in Indian Standard Time (Asia/Kolkata UTC+5:30)
 // Guarantees all currently airing anime appear on their respective days (both earlier today & upcoming)
 // ==========================================
-router.get('/airing-ist', async (req, res) => {
+router.get(['/airing-ist', '/airing'], async (req, res) => {
   const page = Number(req.query.page) || 1;
   const perPage = Number(req.query.perPage) || 50;
   const rawSearch = (req.query.search || req.query.q || '').trim();

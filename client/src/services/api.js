@@ -1,4 +1,20 @@
-const BASE_URL = import.meta.env.VITE_API_URL || '/api';
+const rawEnvUrl = (import.meta.env.VITE_API_URL || '').trim();
+
+// Normalize BASE_URL so it reliably hits /api regardless of trailing slashes or missing /api suffix
+const resolveBaseUrl = () => {
+  if (!rawEnvUrl) {
+    return '/api';
+  }
+  // Strip trailing slashes
+  let url = rawEnvUrl.replace(/\/+$/, '');
+  // If the user provided the backend domain (e.g. https://anicart.onrender.com), append /api
+  if (!url.endsWith('/api')) {
+    url = `${url}/api`;
+  }
+  return url;
+};
+
+const BASE_URL = resolveBaseUrl();
 
 // Helper for authorized fetch
 const authFetch = async (endpoint, options = {}) => {
@@ -12,15 +28,27 @@ const authFetch = async (endpoint, options = {}) => {
     headers['Authorization'] = `Bearer ${token}`;
   }
 
-  const response = await fetch(`${BASE_URL}${endpoint}`, {
-    ...options,
-    headers,
-  });
+  // Ensure endpoint always starts with /
+  const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  const requestUrl = `${BASE_URL}${cleanEndpoint}`;
+
+  let response;
+  try {
+    response = await fetch(requestUrl, {
+      ...options,
+      headers,
+    });
+  } catch (netErr) {
+    throw new Error(`Unable to connect to server at ${requestUrl}. Please check your internet connection or backend server status.`);
+  }
 
   const data = await response.json().catch(() => ({}));
 
   if (!response.ok) {
-    throw new Error(data.error || `Request failed with status ${response.status}`);
+    const errorMsg = data.error || (response.status === 404
+      ? `API endpoint not found (404) at ${requestUrl}. Please verify your backend server is running and VITE_API_URL is configured properly.`
+      : `Request failed with status ${response.status}`);
+    throw new Error(errorMsg);
   }
 
   return data;
@@ -31,6 +59,16 @@ export const api = {
   getHealth: () => authFetch('/health'),
 
   // Auth
+  register: (userData) =>
+    authFetch('/auth/register', {
+      method: 'POST',
+      body: JSON.stringify(userData),
+    }),
+  login: (credentials) =>
+    authFetch('/auth/login', {
+      method: 'POST',
+      body: JSON.stringify(credentials),
+    }),
   loginGoogle: (credentials) =>
     authFetch('/auth/google', {
       method: 'POST',

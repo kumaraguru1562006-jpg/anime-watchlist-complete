@@ -97,9 +97,9 @@ router.post('/google', async (req, res) => {
   }
 });
 
-// POST /api/auth/firebase
-// Handles Firebase email sign-in / registration
-router.post('/firebase', async (req, res) => {
+// POST /api/auth/firebase, /api/auth/register, /api/auth/login
+// Handles email sign-in, registration, and Firebase sync seamlessly
+router.post(['/firebase', '/register', '/login'], async (req, res) => {
   try {
     const { email, name, avatar, firebaseUid } = req.body;
 

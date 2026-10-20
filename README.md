@@ -175,32 +175,56 @@ git push -u origin main
 
 ## 🌐 Deployment & Hosting Guide
 
-### Option A: Frontend on Vercel & Backend on Render (Recommended & Free)
+## 🌐 Vercel Deployment & Hosting Guide
 
-#### 1. Backend (Render.com)
-1. Go to [Render.com](https://render.com) and create a free **Web Service**.
+### Option A: Frontend on Vercel + Backend on Render/Railway (Recommended)
+
+In modern web development, hosting the Vite React SPA on Vercel and the Express API on a dedicated Node host (such as Render or Railway) gives you persistent background schedulers, continuous connections, and zero cold-start limits.
+
+#### 1. Deploy Backend (e.g. Render.com)
+1. Go to [Render.com](https://render.com) and click **New +** -> **Web Service**.
 2. Connect your GitHub repository.
 3. Configure the settings:
    - **Root Directory**: `server`
+   - **Environment**: `Node`
    - **Build Command**: `npm install`
    - **Start Command**: `node server.js`
-4. Add Environment Variables in Render:
+4. In **Environment Variables**, add:
    - `PORT`: `5000`
    - `JWT_SECRET`: (your secure secret string)
    - `GEMINI_API_KEY`: (your Google Gemini API key)
-   - `MONGODB_URI`: (optional MongoDB Atlas URI, or Render persistent disk)
-5. Click **Deploy**. Note your backend URL (e.g., `https://anicart-api.onrender.com`).
+   - `MONGODB_URI`: (your MongoDB Atlas connection string, or omit to use the built-in local persistent JSON fallback)
+5. Deploy and copy your backend URL (e.g. `https://anicart-backend.onrender.com`).
 
-#### 2. Frontend (Vercel.com)
-1. Go to [Vercel.com](https://vercel.com) and import your GitHub repository.
-2. Configure project settings:
+#### 2. Deploy Frontend (Vercel)
+1. Go to [Vercel.com](https://vercel.com) and click **Add New...** -> **Project**.
+2. Import your GitHub repository.
+3. In **Project Configuration**:
    - **Framework Preset**: `Vite`
-   - **Root Directory**: `client`
+   - **Root Directory**: Click *Edit* and select **`client`**
    - **Build Command**: `npm run build`
    - **Output Directory**: `dist`
-3. Add Environment Variable in Vercel:
-   - `VITE_API_URL`: `https://anicart-api.onrender.com/api` (your Render backend URL + `/api`)
-4. Click **Deploy**. Your site will be live on `https://your-project.vercel.app`!
+4. In **Environment Variables**:
+   - Name: `VITE_API_URL`
+   - Value: `https://anicart-backend.onrender.com` (your Render backend URL)
+5. Click **Deploy**. Vercel will serve your site with full SPA routing (`client/vercel.json`), and all registration/auth requests will connect directly to your backend!
+
+---
+
+### Option B: Full-Stack Monorepo on Vercel (All-in-One Serverless)
+
+If you prefer to deploy everything under a single Vercel project:
+
+1. Import your GitHub repository into Vercel.
+2. In **Project Configuration**:
+   - **Root Directory**: Leave as `./` (the root directory)
+   - **Build Command**: Automatically reads `vercel.json` (`npm run build`)
+   - **Output Directory**: `client/dist`
+3. In **Environment Variables**, add:
+   - `JWT_SECRET`: (your secret)
+   - `GEMINI_API_KEY`: (your Google Gemini API key)
+   - `MONGODB_URI`: (MongoDB Atlas URI is required in serverless environments)
+4. Click **Deploy**. Vercel will build the frontend from `client/dist` and automatically route all `/api/*` endpoints to the serverless function in `api/index.js`!
 
 ---
 

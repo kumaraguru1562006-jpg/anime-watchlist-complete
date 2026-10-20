@@ -103,6 +103,15 @@ app.post('/api/system/sync-now', async (req, res) => {
   res.json(result);
 });
 
+// Direct Project ZIP Download endpoint for GitHub/backup
+app.get('/api/download/project', (req, res) => {
+  const zipFile = path.join(__dirname, '..', 'anime-watchlist-complete.zip');
+  if (fs.existsSync(zipFile)) {
+    return res.download(zipFile, 'anicart-platform-complete.zip');
+  }
+  return res.status(404).json({ error: 'Zip file not found' });
+});
+
 // Serve frontend build from client/dist if it exists
 const clientDistPath = path.join(__dirname, '..', 'client', 'dist');
 if (fs.existsSync(clientDistPath)) {
@@ -111,12 +120,36 @@ if (fs.existsSync(clientDistPath)) {
     if (req.path.startsWith('/api')) return next();
     res.sendFile(path.join(clientDistPath, 'index.html'));
   });
+} else {
+  // Graceful root endpoint when frontend dist is not mounted (prevents "Cannot GET /" error)
+  app.get('/', (req, res) => {
+    res.json({
+      name: 'AniCart API',
+      status: 'online',
+      message: 'AniCart Backend API is running successfully.',
+      version: '1.0.0',
+      endpoints: {
+        health: '/api/health',
+        airingIST: '/api/anime/airing',
+        news: '/api/news',
+        watchlist: '/api/watchlist',
+        auth: '/api/auth'
+      }
+    });
+  });
 }
 
-// Start Server immediately and connect to DB asynchronously
-const server = app.listen(PORT, () => {
-  console.log(`🚀 [AniSphere Fullstack] Running on http://localhost:${PORT}`);
-  console.log(`🕒 [IST Clock] Indian Standard Time initialized: ${new Date().toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata' })}`);
-  syncService.startDailyScheduler();
-  connectDB().catch((err) => console.error('DB connect error:', err));
-});
+// Start Server conditionally (only call listen in standalone mode, not in Vercel serverless)
+if (!process.env.VERCEL) {
+  app.listen(PORT, () => {
+    console.log(`🚀 [AniSphere Fullstack] Running on http://localhost:${PORT}`);
+    console.log(`🕒 [IST Clock] Indian Standard Time initialized: ${new Date().toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata' })}`);
+    syncService.startDailyScheduler();
+    connectDB().catch((err) => console.error('DB connect error:', err));
+  });
+} else {
+  connectDB().catch((err) => console.error('DB connect error in serverless:', err));
+}
+
+export default app;
+export { app };
