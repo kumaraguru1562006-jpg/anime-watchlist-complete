@@ -103,6 +103,32 @@
       "avatar": "https://api.dicebear.com/7.x/bottts/svg?seed=test_google_1792487115526%40gmail.com&backgroundColor=020617",
       "googleId": "gid_12345",
       "createdAt": "2026-10-20T09:05:15.537Z"
+    },
+    {
+      "_id": "user_1792489211511_ma1tubqem",
+      "email": "test_deploy_1792489211499@example.com",
+      "name": "Deploy Verifier",
+      "avatar": "https://api.dicebear.com/7.x/bottts/svg?seed=test_deploy_1792489211499%40example.com&backgroundColor=020617",
+      "firebaseUid": "firebase_1792489211511",
+      "bio": "Anime enthusiast exploring Japanese animation.",
+      "createdAt": "2026-10-20T09:40:11.511Z"
+    },
+    {
+      "_id": "user_1792489211521_mp2mhqe65",
+      "email": "test_login_1792489211519@example.com",
+      "name": "Login Verifier",
+      "avatar": "https://api.dicebear.com/7.x/bottts/svg?seed=test_login_1792489211519%40example.com&backgroundColor=020617",
+      "firebaseUid": "firebase_1792489211521",
+      "bio": "Anime enthusiast exploring Japanese animation.",
+      "createdAt": "2026-10-20T09:40:11.521Z"
+    },
+    {
+      "_id": "user_1792489211536_i3gvtjb33",
+      "email": "test_google_1792489211524@gmail.com",
+      "name": "Google Verifier",
+      "avatar": "https://api.dicebear.com/7.x/bottts/svg?seed=test_google_1792489211524%40gmail.com&backgroundColor=020617",
+      "googleId": "gid_12345",
+      "createdAt": "2026-10-20T09:40:11.536Z"
     }
   ],
   "watchlist": [
