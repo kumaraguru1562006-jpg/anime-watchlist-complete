@@ -1,0 +1,129 @@
+const BASE_URL = import.meta.env.VITE_API_URL || '/api';
+
+// Helper for authorized fetch
+const authFetch = async (endpoint, options = {}) => {
+  const token = localStorage.getItem('anisphere_token');
+  const headers = {
+    'Content-Type': 'application/json',
+    ...(options.headers || {}),
+  };
+
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  const response = await fetch(`${BASE_URL}${endpoint}`, {
+    ...options,
+    headers,
+  });
+
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw new Error(data.error || `Request failed with status ${response.status}`);
+  }
+
+  return data;
+};
+
+export const api = {
+  // Health & Server IST Clock
+  getHealth: () => authFetch('/health'),
+
+  // Auth
+  loginGoogle: (credentials) =>
+    authFetch('/auth/google', {
+      method: 'POST',
+      body: JSON.stringify(credentials),
+    }),
+  loginFirebase: (profileData) =>
+    authFetch('/auth/firebase', {
+      method: 'POST',
+      body: JSON.stringify(profileData),
+    }),
+  updateProfile: (profileData) =>
+    authFetch('/auth/profile', {
+      method: 'PUT',
+      body: JSON.stringify(profileData),
+    }),
+  getMe: () => authFetch('/auth/me'),
+
+  // Watchlist (To-Watch, Watched, Progress, Ratings)
+  getWatchlist: (status = 'all') => authFetch(`/watchlist?status=${status}`),
+  getPublicWatchlist: (userId) => authFetch(`/watchlist/public/${encodeURIComponent(userId)}`),
+  getWatchlistStats: () => authFetch('/watchlist/stats'),
+  addToWatchlist: (animeData) =>
+    authFetch('/watchlist', {
+      method: 'POST',
+      body: JSON.stringify(animeData),
+    }),
+  updateWatchlistItem: (animeId, updateData) =>
+    authFetch(`/watchlist/${animeId}`, {
+      method: 'PUT',
+      body: JSON.stringify(updateData),
+    }),
+  removeFromWatchlist: (animeId) =>
+    authFetch(`/watchlist/${animeId}`, {
+      method: 'DELETE',
+    }),
+
+  // Anime Data: All Worldwide Airing IST, Top 5 Monthly, Upcoming Calendar, All Aired Anime, Search
+  getAiringIST: (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return authFetch(`/anime/airing-ist?${query}`);
+  },
+  getTopMonthlyAnime: () => authFetch('/anime/top-monthly'),
+  getUpcomingCalendar: (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return authFetch(`/anime/upcoming-calendar?${query}`);
+  },
+  getAiredAnime: (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return authFetch(`/anime/aired?${query}`);
+  },
+  getTrendingAnime: () => authFetch('/anime/trending'),
+  searchAnime: (params) => {
+    const query = new URLSearchParams(params).toString();
+    return authFetch(`/anime/search?${query}`);
+  },
+  getAnimeDetail: (animeId) => authFetch(`/anime/${animeId}`),
+
+  // Live Anime News & In-App Reader
+  getNews: () => authFetch('/news'),
+  getTrendingNews: () => authFetch('/news/trending'),
+  getNewsArticle: (params) => {
+    const query = new URLSearchParams(params).toString();
+    return authFetch(`/news/article?${query}`);
+  },
+
+  // Automated Daily Sync
+  getSyncStatus: () => authFetch('/anime/sync-status'),
+  triggerSyncNow: () =>
+    authFetch('/anime/sync-now', {
+      method: 'POST',
+    }),
+
+  getThisYearAnime: (params = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return authFetch(`/anime/this-year?${query}`);
+  },
+
+  // AniChat Bot AI All-Rounder & Status
+  getChatStatus: () => authFetch('/chat/status'),
+  setChatApiKey: (payload) =>
+    authFetch('/chat/set-api-key', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  setTavilyApiKey: (payload) =>
+    authFetch('/chat/set-tavily-key', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  chatRecommend: (payload) =>
+    authFetch('/chat/recommend', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+};
+
