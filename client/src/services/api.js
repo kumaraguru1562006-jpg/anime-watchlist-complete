@@ -1,17 +1,26 @@
 const rawEnvUrl = (import.meta.env.VITE_API_URL || '').trim();
 
-// Normalize BASE_URL so it reliably hits /api regardless of trailing slashes or missing /api suffix
+// Verified Live Render Backend Deployment URL
+const DEFAULT_PRODUCTION_BACKEND = 'https://anime-watchlist-complete.onrender.com';
+
+// Normalize BASE_URL so it reliably hits /api in both local dev and production
 const resolveBaseUrl = () => {
-  if (!rawEnvUrl) {
+  // If an explicit environment variable is set, use it:
+  if (rawEnvUrl && rawEnvUrl !== '/api') {
+    let url = rawEnvUrl.replace(/\/+$/, '');
+    if (!url.endsWith('/api')) {
+      url = `${url}/api`;
+    }
+    return url;
+  }
+
+  // In local Vite development mode, use local proxy /api -> http://localhost:5000
+  if (import.meta.env.DEV) {
     return '/api';
   }
-  // Strip trailing slashes
-  let url = rawEnvUrl.replace(/\/+$/, '');
-  // If the user provided the backend domain (e.g. https://anicart.onrender.com), append /api
-  if (!url.endsWith('/api')) {
-    url = `${url}/api`;
-  }
-  return url;
+
+  // In production (Vercel deployment), automatically connect directly to the verified Render backend
+  return `${DEFAULT_PRODUCTION_BACKEND}/api`;
 };
 
 const BASE_URL = resolveBaseUrl();
