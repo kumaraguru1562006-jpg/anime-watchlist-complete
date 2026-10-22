@@ -408,10 +408,10 @@ router.get(['/airing-ist', '/airing'], async (req, res) => {
         }
       `;
 
-      // Top releasing anime query to catch any popular weekly series that may vary slightly in schedule
+      // Top releasing anime query to catch any popular weekly series not yet in the schedule window
       const popularReleasingQuery = `
         query {
-          Page(page: 1, perPage: 30) {
+          Page(page: 1, perPage: 50) {
             media(status: RELEASING, type: ANIME, sort: [POPULARITY_DESC]) {
               id
               idMal
@@ -453,18 +453,25 @@ router.get(['/airing-ist', '/airing'], async (req, res) => {
         }
       `;
 
-      // Fetch 3 pages in parallel to span all 7 days of the week plus popular releasing anime
-      const [p1Res, p2Res, p3Res, popRes] = await Promise.all([
-        axios.post('https://graphql.anilist.co', { query: scheduleQuery, variables: { page: 1, start: startOfTodayIST, end: endOfRollingWeekIST } }, { timeout: 8000 }),
-        axios.post('https://graphql.anilist.co', { query: scheduleQuery, variables: { page: 2, start: startOfTodayIST, end: endOfRollingWeekIST } }, { timeout: 8000 }).catch(() => ({ data: { data: { Page: { airingSchedules: [] } } } })),
-        axios.post('https://graphql.anilist.co', { query: scheduleQuery, variables: { page: 3, start: startOfTodayIST, end: endOfRollingWeekIST } }, { timeout: 8000 }).catch(() => ({ data: { data: { Page: { airingSchedules: [] } } } })),
-        axios.post('https://graphql.anilist.co', { query: popularReleasingQuery }, { timeout: 8000 }).catch(() => ({ data: { data: { Page: { media: [] } } } })),
+      // Fetch 4 pages in parallel to capture ALL airing anime across 7 days (200+ episodes/week)
+      // plus top 50 popular releasing anime to catch any stragglers
+      const fetchPage = (pg) =>
+        axios.post('https://graphql.anilist.co', { query: scheduleQuery, variables: { page: pg, start: startOfTodayIST, end: endOfRollingWeekIST } }, { timeout: 10000 })
+          .catch(() => ({ data: { data: { Page: { airingSchedules: [] } } } }));
+
+      const [p1Res, p2Res, p3Res, p4Res, popRes] = await Promise.all([
+        fetchPage(1),
+        fetchPage(2),
+        fetchPage(3),
+        fetchPage(4),
+        axios.post('https://graphql.anilist.co', { query: popularReleasingQuery }, { timeout: 10000 }).catch(() => ({ data: { data: { Page: { media: [] } } } })),
       ]);
 
       const schedulesList = [
         ...(p1Res.data?.data?.Page?.airingSchedules || []),
         ...(p2Res.data?.data?.Page?.airingSchedules || []),
         ...(p3Res.data?.data?.Page?.airingSchedules || []),
+        ...(p4Res.data?.data?.Page?.airingSchedules || []),
       ];
 
       const popularMedia = popRes.data?.data?.Page?.media || [];
@@ -542,8 +549,8 @@ router.get(['/airing-ist', '/airing'], async (req, res) => {
 
       pageInfo = {
         currentPage: 1,
-        hasNextPage: schedulesList.length >= 140,
-        total: Math.max(enriched.length, 120),
+        hasNextPage: schedulesList.length >= 280,
+        total: Math.max(enriched.length, 150),
       };
     }
 
