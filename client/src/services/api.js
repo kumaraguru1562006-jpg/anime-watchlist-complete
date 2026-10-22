@@ -41,14 +41,38 @@ const authFetch = async (endpoint, options = {}) => {
   const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
   const requestUrl = `${BASE_URL}${cleanEndpoint}`;
 
+  // Retry logic for Render free-tier cold starts (server takes ~30-60s to wake up)
+  const MAX_RETRIES = 3;
+  const RETRY_DELAY_MS = 5000; // 5 seconds between retries
   let response;
-  try {
-    response = await fetch(requestUrl, {
-      ...options,
-      headers,
-    });
-  } catch (netErr) {
-    throw new Error(`Unable to connect to server at ${requestUrl}. Please check your internet connection or backend server status.`);
+  let lastError;
+
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), attempt === 1 ? 15000 : 30000);
+
+      response = await fetch(requestUrl, {
+        ...options,
+        headers,
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+      break; // Success — exit retry loop
+    } catch (netErr) {
+      lastError = netErr;
+      console.warn(`[AniCart API] Attempt ${attempt}/${MAX_RETRIES} failed for ${requestUrl}: ${netErr.message}`);
+      if (attempt < MAX_RETRIES) {
+        // Wait before retrying (server may be waking up from cold start)
+        await new Promise(r => setTimeout(r, RETRY_DELAY_MS));
+      }
+    }
+  }
+
+  if (!response) {
+    throw new Error(
+      `Server is waking up — please wait a moment and try again. (${lastError?.name === 'AbortError' ? 'Request timed out' : lastError?.message || 'Network error'})`
+    );
   }
 
   const data = await response.json().catch(() => ({}));
@@ -173,4 +197,11 @@ export const api = {
       body: JSON.stringify(payload),
     }),
 };
+
+// Pre-warm: Immediately ping the backend when the app loads so the Render
+// free-tier server starts waking up before the user does anything.
+// This runs once at import time — fire-and-forget, no await needed.
+if (!import.meta.env.DEV) {
+  fetch(`${DEFAULT_PRODUCTION_BACKEND}/api/health`, { method: 'GET' }).catch(() => {});
+}
 
