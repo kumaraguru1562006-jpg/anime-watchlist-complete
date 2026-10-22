@@ -98,22 +98,13 @@ export const AuthProvider = ({ children }) => {
   };
 
   /**
-   * Login with Email via Firebase Auth
-   * Automatically persists session across reloads
+   * Login with Email & Password
+   * Connects directly to backend API (verified against MongoDB database)
    */
   const loginWithEmail = async (email, password) => {
     try {
-      // 1. Authenticate with Google Firebase Auth
-      const fbUser = await firebaseSignIn(email, password);
-
-      // 2. Synchronize user profile with backend database
-      const res = await api.loginFirebase({
-        email: fbUser.email,
-        name: fbUser.displayName || fbUser.email.split('@')[0],
-        avatar: fbUser.photoURL,
-        firebaseUid: fbUser.uid,
-      });
-
+      const res = await api.login({ email: email.trim(), password });
+      
       localStorage.setItem('anisphere_token', res.token);
       localStorage.setItem('anisphere_user', JSON.stringify(res.user));
       setToken(res.token);
@@ -126,25 +117,21 @@ export const AuthProvider = ({ children }) => {
 
       return res.user;
     } catch (err) {
-      console.error('Firebase Email login error:', err);
+      console.error('Email login error:', err);
       throw err;
     }
   };
 
   /**
-   * Register with Email via Firebase Auth
+   * Register with Email & Password
+   * Creates verified user account in MongoDB database
    */
   const registerWithEmail = async (email, password, displayName) => {
     try {
-      // 1. Create account with Google Firebase Auth
-      const fbUser = await firebaseSignUp(email, password, displayName);
-
-      // 2. Synchronize user profile with backend database
-      const res = await api.loginFirebase({
-        email: fbUser.email,
-        name: fbUser.displayName || displayName || fbUser.email.split('@')[0],
-        avatar: fbUser.photoURL,
-        firebaseUid: fbUser.uid,
+      const res = await api.register({
+        email: email.trim(),
+        password,
+        name: displayName?.trim() || email.trim().split('@')[0],
       });
 
       localStorage.setItem('anisphere_token', res.token);
@@ -159,27 +146,35 @@ export const AuthProvider = ({ children }) => {
 
       return res.user;
     } catch (err) {
-      console.error('Firebase Email registration error:', err);
+      console.error('Email registration error:', err);
       throw err;
     }
   };
 
   /**
-   * Login with Google Popup (Firebase or Direct)
+   * Login with Authentic Google Account (GIS or Google OAuth popup)
    */
-  const loginWithGoogle = async (profileData) => {
+  const loginWithGoogle = async (googlePayload) => {
     try {
-      let data = profileData;
-      if (!data) {
-        data = await firebaseSignInGoogle();
+      let payload = googlePayload;
+
+      // If called with no payload, try Firebase Google popup as fallback
+      if (!payload) {
+        try {
+          const fbData = await firebaseSignInGoogle();
+          payload = {
+            email: fbData.email,
+            name: fbData.displayName,
+            avatar: fbData.photoURL,
+            googleId: fbData.uid,
+          };
+        } catch (e) {
+          throw new Error('Google Sign-In was cancelled or failed.');
+        }
       }
 
-      const res = await api.loginFirebase({
-        email: data.email,
-        name: data.displayName || data.name,
-        avatar: data.photoURL || data.avatar,
-        firebaseUid: data.uid || data.googleId,
-      });
+      // Authenticate with backend /api/auth/google
+      const res = await api.loginGoogle(payload);
 
       localStorage.setItem('anisphere_token', res.token);
       localStorage.setItem('anisphere_user', JSON.stringify(res.user));

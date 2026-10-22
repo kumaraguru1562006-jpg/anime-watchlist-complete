@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Tv, 
   Flame, 
@@ -16,10 +16,20 @@ import {
   Database,
   Film,
   Zap,
-  Star
+  Star,
+  Settings,
+  HelpCircle,
+  X
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { useAuth } from '../context/AuthContext';
+import { 
+  initGoogleIdentity, 
+  renderGoogleButton, 
+  triggerGooglePopup, 
+  getGoogleClientId, 
+  setGoogleClientId 
+} from '../services/googleAuth';
 
 export const WelcomeLoginPage = ({ onContinueGuest }) => {
   const { loginWithEmail, registerWithEmail, loginWithGoogle } = useAuth();
@@ -30,8 +40,100 @@ export const WelcomeLoginPage = ({ onContinueGuest }) => {
   const [displayName, setDisplayName] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
+
+  // Modal for configuring Google Cloud OAuth Client ID
+  const [showClientIdModal, setShowClientIdModal] = useState(false);
+  const [clientIdInput, setClientIdInput] = useState(getGoogleClientId());
+
+  // Initialize official Google Identity Services button on mount
+  useEffect(() => {
+    const activeClientId = getGoogleClientId();
+    if (activeClientId) {
+      const initialized = initGoogleIdentity(activeClientId, async (userData) => {
+        setGoogleLoading(true);
+        setError('');
+        try {
+          await loginWithGoogle(userData);
+          setSuccessMsg('Welcome back! Signed in with Google.');
+          confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
+        } catch (err) {
+          setError(err.message || 'Google authentication failed.');
+        } finally {
+          setGoogleLoading(false);
+        }
+      });
+
+      if (initialized) {
+        setTimeout(() => {
+          renderGoogleButton('googleBtnContainerWelcome', { width: 340 });
+        }, 200);
+      }
+    }
+  }, []);
+
+  const handleGoogleClick = () => {
+    setError('');
+    const activeClientId = getGoogleClientId();
+    if (!activeClientId) {
+      setShowClientIdModal(true);
+      return;
+    }
+
+    setGoogleLoading(true);
+    triggerGooglePopup(
+      activeClientId,
+      async (googleUserData) => {
+        try {
+          await loginWithGoogle(googleUserData);
+          setSuccessMsg('Welcome! Signed in with Google account.');
+          confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
+        } catch (err) {
+          setError(err.message || 'Google authentication failed.');
+        } finally {
+          setGoogleLoading(false);
+        }
+      },
+      (err) => {
+        setGoogleLoading(false);
+        if (err.message === 'NO_CLIENT_ID') {
+          setShowClientIdModal(true);
+        } else {
+          setError(err.message || 'Google Sign-In failed or was closed.');
+        }
+      }
+    );
+  };
+
+  const handleSaveClientId = (e) => {
+    e.preventDefault();
+    if (!clientIdInput.trim()) {
+      setError('Please provide a valid Google Cloud Client ID.');
+      return;
+    }
+    setGoogleClientId(clientIdInput.trim());
+    setShowClientIdModal(false);
+    setError('');
+    setSuccessMsg('Google Client ID saved! Initializing Google Sign-In...');
+
+    setTimeout(() => {
+      initGoogleIdentity(clientIdInput.trim(), async (userData) => {
+        setGoogleLoading(true);
+        try {
+          await loginWithGoogle(userData);
+          confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
+        } catch (err) {
+          setError(err.message || 'Google authentication failed.');
+        } finally {
+          setGoogleLoading(false);
+        }
+      });
+      renderGoogleButton('googleBtnContainerWelcome', { width: 340 });
+      handleGoogleClick();
+    }, 300);
+  };
 
   const handleAuth = async (e) => {
     if (e) e.preventDefault();
@@ -39,7 +141,12 @@ export const WelcomeLoginPage = ({ onContinueGuest }) => {
     setSuccessMsg('');
 
     if (!email.trim() || !password.trim()) {
-      setError('Please provide both email and password.');
+      setError('Please provide both your email address and password.');
+      return;
+    }
+
+    if (!email.includes('@')) {
+      setError('Please enter a valid email address.');
       return;
     }
 
@@ -55,7 +162,7 @@ export const WelcomeLoginPage = ({ onContinueGuest }) => {
         setSuccessMsg('Welcome back! Loading your anime hub...');
       } else {
         await registerWithEmail(email.trim(), password, displayName.trim());
-        setSuccessMsg('Account created! Welcome to AniSphere!');
+        setSuccessMsg('Account created successfully! Welcome to AniCart!');
       }
 
       confetti({
@@ -63,18 +170,9 @@ export const WelcomeLoginPage = ({ onContinueGuest }) => {
         spread: 70,
         origin: { y: 0.6 }
       });
-      // The auth state change in AuthContext will automatically transition to MainLayout
     } catch (err) {
       console.error('Auth error:', err);
-      let msg = err.message || 'Authentication failed. Please verify your credentials.';
-      if (msg.includes('auth/invalid-credential') || msg.includes('auth/wrong-password')) {
-        msg = 'Invalid email or password. Please try again or use the demo login.';
-      } else if (msg.includes('auth/email-already-in-use')) {
-        msg = 'This email is already registered. Please switch to Sign In.';
-      } else if (msg.includes('auth/weak-password')) {
-        msg = 'Password is too weak. Please use at least 6 characters.';
-      }
-      setError(msg);
+      setError(err.message || 'Authentication failed. Please verify your credentials.');
     } finally {
       setLoading(false);
     }
@@ -106,7 +204,7 @@ export const WelcomeLoginPage = ({ onContinueGuest }) => {
           <div>
             <div className="flex items-center gap-2">
               <span className="font-heading font-black text-xl tracking-tight text-white">
-                AniSphere
+                AniCart
               </span>
               <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30">
                 IST Live Hub
@@ -132,7 +230,7 @@ export const WelcomeLoginPage = ({ onContinueGuest }) => {
         <div className="lg:col-span-7 space-y-6">
           <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-300 text-xs font-medium">
             <Sparkles className="w-4 h-4 text-cyan-400" />
-            <span>Step 1: Sign in once • Auto-loads automatically every time</span>
+            <span>Sign in once • Stay permanently synchronized across devices</span>
           </div>
 
           <h1 className="text-3xl sm:text-5xl font-black font-heading tracking-tight text-white leading-tight">
@@ -143,7 +241,7 @@ export const WelcomeLoginPage = ({ onContinueGuest }) => {
           </h1>
 
           <p className="text-sm sm:text-base text-slate-300 leading-relaxed max-w-xl">
-            Login with your email for the first time. Your preferences, watched episodes, and custom watchlist are permanently synchronized with Google Firebase. No need to log in each time you visit!
+            Log in securely with your Google / Gmail account or email. Your watchlist, watched episodes, and custom ratings are backed up directly to MongoDB.
           </p>
 
           {/* Highlights feature cards */}
@@ -165,10 +263,10 @@ export const WelcomeLoginPage = ({ onContinueGuest }) => {
                 <div className="w-7 h-7 rounded-lg bg-orange-500/20 text-orange-300 flex items-center justify-center">
                   <Flame className="w-4 h-4" />
                 </div>
-                <h2 className="text-xs font-bold text-white">Crunchyroll Top 5 & IMDb</h2>
+                <h2 className="text-xs font-bold text-white">Top Monthly Anime & IMDb</h2>
               </div>
               <p className="text-[11px] text-slate-400">
-                Live rankings, official trailers, and certified IMDb community scores.
+                Live rankings, official trailers, and certified community ratings.
               </p>
             </div>
 
@@ -180,7 +278,7 @@ export const WelcomeLoginPage = ({ onContinueGuest }) => {
                 <h2 className="text-xs font-bold text-white">2026 Seasonal Showcase</h2>
               </div>
               <p className="text-[11px] text-slate-400">
-                Split by Winter, Spring, Summer, and Fall with comprehensive anime coverage.
+                All 4 seasons with batch-dropped ONAs (like Cyberpunk 2) and TV series.
               </p>
             </div>
 
@@ -189,28 +287,29 @@ export const WelcomeLoginPage = ({ onContinueGuest }) => {
                 <div className="w-7 h-7 rounded-lg bg-emerald-500/20 text-emerald-300 flex items-center justify-center">
                   <Zap className="w-4 h-4" />
                 </div>
-                <h2 className="text-xs font-bold text-white">Gemini AI Anime Chatbot</h2>
+                <h2 className="text-xs font-bold text-white">AniChat AI Recommender</h2>
               </div>
               <p className="text-[11px] text-slate-400">
-                Multi-turn intelligent recommender powered by Google Gemini AI with memory.
+                Personalized AI assistant powered by Google Gemini with live web grounding.
               </p>
             </div>
           </div>
         </div>
 
-        {/* Right Column: Google Firebase Email Login / Register Card */}
+        {/* Right Column: Google & Email Authentication Card */}
         <div className="lg:col-span-5">
           <div className="relative rounded-3xl liquid-glass-nav bg-[#0e1329]/90 border border-white/15 p-6 sm:p-8 shadow-2xl shadow-purple-950/50">
+            
             {/* Header Tabs */}
-            <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center justify-between mb-5">
               <div>
                 <h2 className="text-xl font-black font-heading text-white">
-                  {mode === 'login' ? 'Sign In to AniSphere' : 'Create Account'}
+                  {mode === 'login' ? 'Welcome to AniCart' : 'Create Free Account'}
                 </h2>
                 <p className="text-xs text-slate-400 mt-0.5">
                   {mode === 'login' 
-                    ? 'Enter your email to unlock your watchlist & profile' 
-                    : 'Register with your email to start tracking anime'}
+                    ? 'Sign in to access your synchronized watchlist' 
+                    : 'Register to start tracking your anime progress'}
                 </p>
               </div>
 
@@ -255,11 +354,73 @@ export const WelcomeLoginPage = ({ onContinueGuest }) => {
               </div>
             )}
 
-            {/* Auth Form */}
-            <form onSubmit={handleAuth} className="space-y-4">
+            {/* PRIMARY: Google Official Sign-In Button */}
+            <div className="space-y-2 mb-5">
+              <button
+                type="button"
+                onClick={handleGoogleClick}
+                disabled={loading || googleLoading}
+                className="w-full py-3 px-4 rounded-xl bg-white hover:bg-slate-100 text-slate-900 font-bold text-xs shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-3 border border-slate-200 group active:scale-[0.99] disabled:opacity-60"
+              >
+                {googleLoading ? (
+                  <div className="w-4 h-4 border-2 border-slate-400 border-t-purple-600 rounded-full animate-spin" />
+                ) : (
+                  <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24">
+                    <path
+                      fill="#4285F4"
+                      d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                    />
+                    <path
+                      fill="#34A853"
+                      d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                    />
+                    <path
+                      fill="#FBBC05"
+                      d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
+                    />
+                    <path
+                      fill="#EA4335"
+                      d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
+                    />
+                  </svg>
+                )}
+                <span>
+                  {googleLoading ? 'Connecting to Google...' : 'Continue with Google (Gmail)'}
+                </span>
+              </button>
+
+              {/* Native Google Identity rendered button container */}
+              <div id="googleBtnContainerWelcome" className="flex justify-center empty:hidden" />
+
+              <div className="flex items-center justify-between px-1 text-[10px] text-slate-500">
+                <span className="flex items-center gap-1">
+                  <ShieldCheck className="w-3 h-3 text-emerald-400" />
+                  Official Google OAuth
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setShowClientIdModal(true)}
+                  className="hover:text-purple-300 transition-colors flex items-center gap-1"
+                >
+                  <Settings className="w-3 h-3" />
+                  Configure Google ID
+                </button>
+              </div>
+            </div>
+
+            {/* Divider */}
+            <div className="relative my-4 flex items-center justify-center">
+              <div className="border-t border-white/10 w-full" />
+              <span className="bg-[#0e1329] px-3 text-[10px] text-slate-400 uppercase tracking-wider font-mono absolute">
+                Or with Email & Password
+              </span>
+            </div>
+
+            {/* Email / Password Form */}
+            <form onSubmit={handleAuth} className="space-y-3.5">
               {mode === 'register' && (
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">
                     Display Name
                   </label>
                   <div className="relative">
@@ -276,7 +437,7 @@ export const WelcomeLoginPage = ({ onContinueGuest }) => {
               )}
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
                   Email Address
                 </label>
                 <div className="relative">
@@ -293,7 +454,7 @@ export const WelcomeLoginPage = ({ onContinueGuest }) => {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
                   Password
                 </label>
                 <div className="relative">
@@ -301,7 +462,7 @@ export const WelcomeLoginPage = ({ onContinueGuest }) => {
                   <input
                     type={showPassword ? 'text' : 'password'}
                     required
-                    placeholder="••••••••"
+                    placeholder="At least 6 characters"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     className="w-full pl-10 pr-10 py-2.5 rounded-xl bg-black/40 border border-white/10 text-white placeholder-slate-500 text-xs focus:outline-none focus:border-purple-500/60 transition-colors"
@@ -319,25 +480,25 @@ export const WelcomeLoginPage = ({ onContinueGuest }) => {
               {/* Submit Button */}
               <button
                 type="submit"
-                disabled={loading}
+                disabled={loading || googleLoading}
                 className="w-full py-3 rounded-xl bg-gradient-to-r from-purple-600 via-indigo-600 to-cyan-500 hover:from-purple-500 hover:to-cyan-400 text-white font-bold text-xs shadow-lg shadow-purple-600/30 border border-white/20 transition-all flex items-center justify-center gap-2 group disabled:opacity-50"
               >
                 {loading ? (
                   <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                 ) : (
                   <>
-                    <span>{mode === 'login' ? 'Sign In & Enter Dashboard' : 'Create Account & Enter'}</span>
+                    <span>{mode === 'login' ? 'Sign In' : 'Create My Account'}</span>
                     <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                   </>
                 )}
               </button>
             </form>
 
-            {/* Quick Test Accounts */}
-            <div className="mt-5 pt-4 border-t border-white/10">
-              <div className="flex items-center justify-between text-[11px] text-slate-400 mb-2">
-                <span>1-Click Quick Demo Sign In:</span>
-                <span className="text-[10px] text-purple-400 font-mono">Instant Test</span>
+            {/* Quick Demo Test Logins */}
+            <div className="mt-4 pt-3 border-t border-white/10">
+              <div className="flex items-center justify-between text-[11px] text-slate-400 mb-1.5">
+                <span>1-Click Test Accounts:</span>
+                <span className="text-[10px] text-purple-400 font-mono">Instant Preview</span>
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <button
@@ -359,14 +520,6 @@ export const WelcomeLoginPage = ({ onContinueGuest }) => {
               </div>
             </div>
 
-            {/* Persistence Guarantee Badge */}
-            <div className="mt-4 p-2.5 rounded-xl bg-purple-950/30 border border-purple-500/20 flex items-center gap-2 text-[10px] text-purple-200">
-              <ShieldCheck className="w-4 h-4 text-cyan-400 flex-shrink-0" />
-              <span>
-                <strong>Auto-Load Active:</strong> Sign in once and you stay logged in permanently. No repeated logins required!
-              </span>
-            </div>
-
             {/* Guest Action */}
             <div className="mt-4 text-center">
               <button
@@ -382,9 +535,77 @@ export const WelcomeLoginPage = ({ onContinueGuest }) => {
         </div>
       </main>
 
+      {/* Google Client ID Configuration Modal */}
+      {showClientIdModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in">
+          <div className="relative w-full max-w-md liquid-glass-nav bg-[#0e1329] rounded-2xl p-6 border border-white/20 shadow-2xl">
+            <button
+              onClick={() => setShowClientIdModal(false)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-white"
+            >
+              <X className="w-4 h-4" />
+            </button>
+
+            <div className="flex items-center gap-2 mb-3">
+              <div className="p-2 rounded-xl bg-purple-500/20 text-purple-300">
+                <Settings className="w-4 h-4" />
+              </div>
+              <h3 className="text-base font-bold text-white">Google OAuth Client ID</h3>
+            </div>
+
+            <p className="text-xs text-slate-300 leading-relaxed mb-4">
+              To enable authentic Google / Gmail sign-in with your Google Cloud account, paste your Web OAuth Client ID below:
+            </p>
+
+            <form onSubmit={handleSaveClientId} className="space-y-3">
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 mb-1">
+                  Google Client ID (e.g. 12345...apps.googleusercontent.com)
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="xxxx.apps.googleusercontent.com"
+                  value={clientIdInput}
+                  onChange={(e) => setClientIdInput(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl bg-black/50 border border-white/20 text-xs text-white placeholder-slate-500 font-mono focus:border-purple-500 focus:outline-none"
+                />
+              </div>
+
+              <div className="p-3 rounded-xl bg-purple-950/40 border border-purple-500/30 text-[11px] text-purple-200 space-y-1">
+                <p className="font-semibold text-purple-100">Quick Setup Instructions:</p>
+                <p>1. Open Google Cloud Console: <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener noreferrer" className="text-cyan-300 underline">Credentials</a></p>
+                <p>2. Create OAuth Client ID &rarr; Web Application</p>
+                <p>3. Add Authorized Origins:</p>
+                <code className="block bg-black/50 p-1.5 rounded text-[10px] text-cyan-300 font-mono">
+                  https://anime-watchlist-complete.vercel.app<br />
+                  http://localhost:5173
+                </code>
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowClientIdModal(false)}
+                  className="flex-1 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-xs font-semibold text-slate-300"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-xs font-bold text-white shadow-lg"
+                >
+                  Save & Connect Google
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* Footer */}
       <footer className="relative z-10 border-t border-white/10 bg-[#070913]/90 py-4 px-4 sm:px-6 text-center text-xs text-slate-500">
-        AniSphere • Single Localhost: http://localhost:5173 • Live Indian Standard Time (IST) & Firebase Sync
+        AniCart • Live Indian Standard Time (IST) • MongoDB Cloud Database
       </footer>
     </div>
   );
