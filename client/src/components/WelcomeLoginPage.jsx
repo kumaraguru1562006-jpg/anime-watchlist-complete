@@ -4,21 +4,14 @@ import {
   Flame, 
   Calendar, 
   Sparkles, 
-  Mail, 
-  Lock, 
-  User, 
-  Eye, 
-  EyeOff, 
   ArrowRight, 
   ShieldCheck, 
   Check, 
   AlertCircle, 
-  Database,
-  Film,
   Zap,
-  Star,
   Settings,
   HelpCircle,
+  ExternalLink,
   X
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
@@ -32,32 +25,27 @@ import {
 } from '../services/googleAuth';
 
 export const WelcomeLoginPage = ({ onContinueGuest }) => {
-  const { loginWithEmail, registerWithEmail, loginWithGoogle } = useAuth();
+  const { loginWithGoogle } = useAuth();
   
-  const [mode, setMode] = useState('login'); // 'login' | 'register'
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [displayName, setDisplayName] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-  const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
 
-  // Modal for configuring Google Cloud OAuth Client ID
-  const [showClientIdModal, setShowClientIdModal] = useState(false);
+  // Configuration state for Google Cloud OAuth Web Client ID
   const [clientIdInput, setClientIdInput] = useState(getGoogleClientId());
+  const [showConfig, setShowConfig] = useState(!getGoogleClientId());
+
+  const activeClientId = getGoogleClientId();
 
   // Initialize official Google Identity Services button on mount
   useEffect(() => {
-    const activeClientId = getGoogleClientId();
     if (activeClientId) {
       const initialized = initGoogleIdentity(activeClientId, async (userData) => {
         setGoogleLoading(true);
         setError('');
         try {
           await loginWithGoogle(userData);
-          setSuccessMsg('Welcome back! Signed in with Google.');
+          setSuccessMsg('Welcome! Signed in with Google account.');
           confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
         } catch (err) {
           setError(err.message || 'Google authentication failed.');
@@ -72,23 +60,26 @@ export const WelcomeLoginPage = ({ onContinueGuest }) => {
         }, 200);
       }
     }
-  }, []);
+  }, [activeClientId]);
 
   const handleGoogleClick = () => {
     setError('');
-    const activeClientId = getGoogleClientId();
-    if (!activeClientId) {
-      setShowClientIdModal(true);
+    const id = getGoogleClientId();
+
+    // Validate client ID format (must end with apps.googleusercontent.com)
+    if (!id || !id.includes('.apps.googleusercontent.com')) {
+      setShowConfig(true);
+      setError('Please provide your Google Cloud OAuth Web Client ID (ends with .apps.googleusercontent.com).');
       return;
     }
 
     setGoogleLoading(true);
     triggerGooglePopup(
-      activeClientId,
+      id,
       async (googleUserData) => {
         try {
           await loginWithGoogle(googleUserData);
-          setSuccessMsg('Welcome! Signed in with Google account.');
+          setSuccessMsg('Welcome! Signed in with your verified Gmail account.');
           confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
         } catch (err) {
           setError(err.message || 'Google authentication failed.');
@@ -99,7 +90,7 @@ export const WelcomeLoginPage = ({ onContinueGuest }) => {
       (err) => {
         setGoogleLoading(false);
         if (err.message === 'NO_CLIENT_ID') {
-          setShowClientIdModal(true);
+          setShowConfig(true);
         } else {
           setError(err.message || 'Google Sign-In failed or was closed.');
         }
@@ -109,17 +100,24 @@ export const WelcomeLoginPage = ({ onContinueGuest }) => {
 
   const handleSaveClientId = (e) => {
     e.preventDefault();
-    if (!clientIdInput.trim()) {
-      setError('Please provide a valid Google Cloud Client ID.');
+    const cleanId = clientIdInput.trim();
+    if (!cleanId) {
+      setError('Please enter a Google Cloud OAuth Client ID.');
       return;
     }
-    setGoogleClientId(clientIdInput.trim());
-    setShowClientIdModal(false);
+
+    if (!cleanId.includes('.apps.googleusercontent.com')) {
+      setError('Invalid Client ID format! A Google OAuth Client ID must look like: 1234567890-xxxx.apps.googleusercontent.com (not a project name).');
+      return;
+    }
+
+    setGoogleClientId(cleanId);
+    setShowConfig(false);
     setError('');
-    setSuccessMsg('Google Client ID saved! Initializing Google Sign-In...');
+    setSuccessMsg('Google Client ID saved! Connecting to Google...');
 
     setTimeout(() => {
-      initGoogleIdentity(clientIdInput.trim(), async (userData) => {
+      initGoogleIdentity(cleanId, async (userData) => {
         setGoogleLoading(true);
         try {
           await loginWithGoogle(userData);
@@ -135,59 +133,9 @@ export const WelcomeLoginPage = ({ onContinueGuest }) => {
     }, 300);
   };
 
-  const handleAuth = async (e) => {
-    if (e) e.preventDefault();
-    setError('');
-    setSuccessMsg('');
-
-    if (!email.trim() || !password.trim()) {
-      setError('Please provide both your email address and password.');
-      return;
-    }
-
-    if (!email.includes('@')) {
-      setError('Please enter a valid email address.');
-      return;
-    }
-
-    if (mode === 'register' && password.length < 6) {
-      setError('Password must be at least 6 characters long.');
-      return;
-    }
-
-    setLoading(true);
-    try {
-      if (mode === 'login') {
-        await loginWithEmail(email.trim(), password);
-        setSuccessMsg('Welcome back! Loading your anime hub...');
-      } else {
-        await registerWithEmail(email.trim(), password, displayName.trim());
-        setSuccessMsg('Account created successfully! Welcome to AniCart!');
-      }
-
-      confetti({
-        particleCount: 100,
-        spread: 70,
-        origin: { y: 0.6 }
-      });
-    } catch (err) {
-      console.error('Auth error:', err);
-      setError(err.message || 'Authentication failed. Please verify your credentials.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleQuickDemo = (demoEmail, demoPass) => {
-    setEmail(demoEmail);
-    setPassword(demoPass);
-    setMode('login');
-    setError('');
-  };
-
   return (
     <div className="relative min-h-screen flex flex-col justify-between selection:bg-purple-500/30 selection:text-purple-200 bg-[#070913] text-slate-100 overflow-x-hidden">
-      {/* Background Liquid Ambient Orbs */}
+      {/* Background Ambient Orbs */}
       <div className="liquid-orb-1" />
       <div className="liquid-orb-2" />
 
@@ -223,14 +171,14 @@ export const WelcomeLoginPage = ({ onContinueGuest }) => {
         </button>
       </header>
 
-      {/* Main Container: Split Guidance & Login Card */}
+      {/* Main Container */}
       <main className="relative z-10 max-w-6xl w-full mx-auto px-4 sm:px-6 py-8 md:py-12 my-auto grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
         
-        {/* Left Column: Feature Highlights & Value Guidance */}
+        {/* Left Column: Feature Highlights */}
         <div className="lg:col-span-7 space-y-6">
           <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-300 text-xs font-medium">
             <Sparkles className="w-4 h-4 text-cyan-400" />
-            <span>Sign in once • Stay permanently synchronized across devices</span>
+            <span>Official Google Sign-In • Permanent Cloud Watchlist Sync</span>
           </div>
 
           <h1 className="text-3xl sm:text-5xl font-black font-heading tracking-tight text-white leading-tight">
@@ -241,7 +189,7 @@ export const WelcomeLoginPage = ({ onContinueGuest }) => {
           </h1>
 
           <p className="text-sm sm:text-base text-slate-300 leading-relaxed max-w-xl">
-            Log in securely with your Google / Gmail account or email. Your watchlist, watched episodes, and custom ratings are backed up directly to MongoDB.
+            Log in exclusively with your verified Google / Gmail account. Your watchlist, watched episodes, and ratings are automatically backed up to MongoDB.
           </p>
 
           {/* Highlights feature cards */}
@@ -296,50 +244,29 @@ export const WelcomeLoginPage = ({ onContinueGuest }) => {
           </div>
         </div>
 
-        {/* Right Column: Google & Email Authentication Card */}
+        {/* Right Column: Google Sign-In Card */}
         <div className="lg:col-span-5">
-          <div className="relative rounded-3xl liquid-glass-nav bg-[#0e1329]/90 border border-white/15 p-6 sm:p-8 shadow-2xl shadow-purple-950/50">
+          <div className="relative rounded-3xl liquid-glass-nav bg-[#0e1329]/95 border border-white/15 p-6 sm:p-8 shadow-2xl shadow-purple-950/50">
             
-            {/* Header Tabs */}
-            <div className="flex items-center justify-between mb-5">
-              <div>
-                <h2 className="text-xl font-black font-heading text-white">
-                  {mode === 'login' ? 'Welcome to AniCart' : 'Create Free Account'}
-                </h2>
-                <p className="text-xs text-slate-400 mt-0.5">
-                  {mode === 'login' 
-                    ? 'Sign in to access your synchronized watchlist' 
-                    : 'Register to start tracking your anime progress'}
-                </p>
+            {/* Header */}
+            <div className="text-center mb-6">
+              <div className="inline-flex p-3 rounded-2xl bg-gradient-to-tr from-purple-600/30 to-cyan-500/30 border border-white/15 mb-3 shadow-lg">
+                <svg className="w-7 h-7" viewBox="0 0 24 24">
+                  <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                  <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                  <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
+                  <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
+                </svg>
               </div>
-
-              <div className="flex items-center p-1 rounded-xl bg-black/40 border border-white/10">
-                <button
-                  type="button"
-                  onClick={() => { setMode('login'); setError(''); }}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                    mode === 'login'
-                      ? 'bg-purple-600 text-white shadow-md'
-                      : 'text-slate-400 hover:text-white'
-                  }`}
-                >
-                  Sign In
-                </button>
-                <button
-                  type="button"
-                  onClick={() => { setMode('register'); setError(''); }}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                    mode === 'register'
-                      ? 'bg-purple-600 text-white shadow-md'
-                      : 'text-slate-400 hover:text-white'
-                  }`}
-                >
-                  Register
-                </button>
-              </div>
+              <h2 className="text-2xl font-black font-heading text-white">
+                Sign In with Google
+              </h2>
+              <p className="text-xs text-slate-300 mt-1 max-w-xs mx-auto">
+                Only authentic Google / Gmail accounts are supported for verified personal synchronization.
+              </p>
             </div>
 
-            {/* Error & Success Messages */}
+            {/* Error Message */}
             {error && (
               <div className="mb-4 p-3 rounded-xl bg-red-500/10 border border-red-500/30 flex items-start gap-2.5 text-xs text-red-300 animate-in fade-in">
                 <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
@@ -347,6 +274,7 @@ export const WelcomeLoginPage = ({ onContinueGuest }) => {
               </div>
             )}
 
+            {/* Success Message */}
             {successMsg && (
               <div className="mb-4 p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-start gap-2.5 text-xs text-emerald-300 animate-in fade-in">
                 <Check className="w-4 h-4 text-emerald-400 flex-shrink-0 mt-0.5" />
@@ -354,174 +282,97 @@ export const WelcomeLoginPage = ({ onContinueGuest }) => {
               </div>
             )}
 
-            {/* PRIMARY: Google Official Sign-In Button */}
-            <div className="space-y-2 mb-5">
+            {/* Google Action Button */}
+            <div className="space-y-3 mb-6">
               <button
                 type="button"
                 onClick={handleGoogleClick}
-                disabled={loading || googleLoading}
-                className="w-full py-3 px-4 rounded-xl bg-white hover:bg-slate-100 text-slate-900 font-bold text-xs shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-3 border border-slate-200 group active:scale-[0.99] disabled:opacity-60"
+                disabled={googleLoading}
+                className="w-full py-3.5 px-4 rounded-2xl bg-white hover:bg-slate-100 text-slate-900 font-bold text-sm shadow-xl hover:shadow-2xl transition-all flex items-center justify-center gap-3 border border-slate-200 group active:scale-[0.98] disabled:opacity-60"
               >
                 {googleLoading ? (
                   <div className="w-4 h-4 border-2 border-slate-400 border-t-purple-600 rounded-full animate-spin" />
                 ) : (
-                  <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24">
-                    <path
-                      fill="#4285F4"
-                      d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                    />
-                    <path
-                      fill="#34A853"
-                      d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                    />
-                    <path
-                      fill="#FBBC05"
-                      d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
-                    />
-                    <path
-                      fill="#EA4335"
-                      d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
-                    />
+                  <svg className="w-5 h-5 flex-shrink-0" viewBox="0 0 24 24">
+                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
+                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
                   </svg>
                 )}
                 <span>
-                  {googleLoading ? 'Connecting to Google...' : 'Continue with Google (Gmail)'}
+                  {googleLoading ? 'Connecting with Google...' : 'Continue with Google (Gmail)'}
                 </span>
               </button>
 
-              {/* Native Google Identity rendered button container */}
+              {/* Native Google Identity rendered button */}
               <div id="googleBtnContainerWelcome" className="flex justify-center empty:hidden" />
+            </div>
 
-              <div className="flex items-center justify-between px-1 text-[10px] text-slate-500">
-                <span className="flex items-center gap-1">
-                  <ShieldCheck className="w-3 h-3 text-emerald-400" />
-                  Official Google OAuth
+            {/* Google OAuth Setup / Status Panel */}
+            <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/10 space-y-3">
+              <div className="flex items-center justify-between text-xs">
+                <span className="flex items-center gap-1.5 font-semibold text-slate-300">
+                  <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                  Google OAuth Status
                 </span>
                 <button
                   type="button"
-                  onClick={() => setShowClientIdModal(true)}
-                  className="hover:text-purple-300 transition-colors flex items-center gap-1"
+                  onClick={() => setShowConfig(!showConfig)}
+                  className="text-purple-400 hover:text-purple-300 transition-colors flex items-center gap-1 text-[11px]"
                 >
-                  <Settings className="w-3 h-3" />
-                  Configure Google ID
+                  <Settings className="w-3.5 h-3.5" />
+                  {showConfig ? 'Hide Settings' : 'Configure Client ID'}
                 </button>
               </div>
-            </div>
 
-            {/* Divider */}
-            <div className="relative my-4 flex items-center justify-center">
-              <div className="border-t border-white/10 w-full" />
-              <span className="bg-[#0e1329] px-3 text-[10px] text-slate-400 uppercase tracking-wider font-mono absolute">
-                Or with Email & Password
-              </span>
-            </div>
-
-            {/* Email / Password Form */}
-            <form onSubmit={handleAuth} className="space-y-3.5">
-              {mode === 'register' && (
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">
-                    Display Name
-                  </label>
-                  <div className="relative">
-                    <User className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                    <input
-                      type="text"
-                      placeholder="e.g. Satoru Gojo"
-                      value={displayName}
-                      onChange={(e) => setDisplayName(e.target.value)}
-                      className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-black/40 border border-white/10 text-white placeholder-slate-500 text-xs focus:outline-none focus:border-purple-500/60 transition-colors"
-                    />
+              {showConfig ? (
+                <form onSubmit={handleSaveClientId} className="space-y-3 pt-2 border-t border-white/10">
+                  <p className="text-[11px] text-slate-400 leading-relaxed">
+                    Paste your <strong>Google OAuth Web Client ID</strong> from Google Cloud Console:
+                  </p>
+                  <input
+                    type="text"
+                    required
+                    placeholder="xxxx.apps.googleusercontent.com"
+                    value={clientIdInput}
+                    onChange={(e) => setClientIdInput(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl bg-black/60 border border-white/20 text-xs text-white placeholder-slate-500 font-mono focus:border-purple-500 focus:outline-none"
+                  />
+                  <div className="p-2.5 rounded-xl bg-purple-950/50 border border-purple-500/20 text-[10px] text-purple-200 space-y-1">
+                    <p className="font-semibold text-purple-100">How to get a Client ID (60 seconds):</p>
+                    <p>1. Open <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener noreferrer" className="text-cyan-300 underline font-semibold">Google Cloud Credentials</a></p>
+                    <p>2. Create Credentials &rarr; <strong>OAuth client ID</strong> &rarr; <strong>Web application</strong></p>
+                    <p>3. In Authorized JavaScript Origins, add:</p>
+                    <code className="block bg-black/60 p-1.5 rounded text-[10px] text-cyan-300 font-mono">
+                      https://anime-watchlist-complete.vercel.app<br />
+                      http://localhost:5173
+                    </code>
+                    <p>4. Copy the Client ID ending with <code>.apps.googleusercontent.com</code></p>
                   </div>
-                </div>
-              )}
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
-                  Email Address
-                </label>
-                <div className="relative">
-                  <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="email"
-                    required
-                    placeholder="user@example.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-black/40 border border-white/10 text-white placeholder-slate-500 text-xs focus:outline-none focus:border-purple-500/60 transition-colors"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
-                  Password
-                </label>
-                <div className="relative">
-                  <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    required
-                    placeholder="At least 6 characters"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="w-full pl-10 pr-10 py-2.5 rounded-xl bg-black/40 border border-white/10 text-white placeholder-slate-500 text-xs focus:outline-none focus:border-purple-500/60 transition-colors"
-                  />
                   <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+                    type="submit"
+                    className="w-full py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-xs font-bold text-white shadow-lg transition-all"
                   >
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    Save & Activate Google Sign-In
                   </button>
-                </div>
-              </div>
-
-              {/* Submit Button */}
-              <button
-                type="submit"
-                disabled={loading || googleLoading}
-                className="w-full py-3 rounded-xl bg-gradient-to-r from-purple-600 via-indigo-600 to-cyan-500 hover:from-purple-500 hover:to-cyan-400 text-white font-bold text-xs shadow-lg shadow-purple-600/30 border border-white/20 transition-all flex items-center justify-center gap-2 group disabled:opacity-50"
-              >
-                {loading ? (
-                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                ) : (
-                  <>
-                    <span>{mode === 'login' ? 'Sign In' : 'Create My Account'}</span>
-                    <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-                  </>
-                )}
-              </button>
-            </form>
-
-            {/* Quick Demo Test Logins */}
-            <div className="mt-4 pt-3 border-t border-white/10">
-              <div className="flex items-center justify-between text-[11px] text-slate-400 mb-1.5">
-                <span>1-Click Test Accounts:</span>
-                <span className="text-[10px] text-purple-400 font-mono">Instant Preview</span>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => handleQuickDemo('demo@anisphere.com', 'animefan123')}
-                  className="px-2.5 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-left transition-colors"
-                >
-                  <p className="text-[11px] font-semibold text-slate-200">Demo User</p>
-                  <p className="text-[9px] text-slate-400 font-mono truncate">demo@anisphere.com</p>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleQuickDemo('otaku@anisphere.com', 'animefan123')}
-                  className="px-2.5 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-left transition-colors"
-                >
-                  <p className="text-[11px] font-semibold text-slate-200">Otaku Fan</p>
-                  <p className="text-[9px] text-slate-400 font-mono truncate">otaku@anisphere.com</p>
-                </button>
-              </div>
+                </form>
+              ) : (
+                <p className="text-[11px] text-slate-400 leading-relaxed">
+                  {activeClientId ? (
+                    <span className="text-emerald-400">
+                      ✓ Google Client ID configured ({activeClientId.slice(0, 16)}...)
+                    </span>
+                  ) : (
+                    <span>Click "Configure Client ID" to connect your Google Cloud OAuth project.</span>
+                  )}
+                </p>
+              )}
             </div>
 
             {/* Guest Action */}
-            <div className="mt-4 text-center">
+            <div className="mt-5 text-center">
               <button
                 type="button"
                 onClick={onContinueGuest}
@@ -535,77 +386,9 @@ export const WelcomeLoginPage = ({ onContinueGuest }) => {
         </div>
       </main>
 
-      {/* Google Client ID Configuration Modal */}
-      {showClientIdModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in">
-          <div className="relative w-full max-w-md liquid-glass-nav bg-[#0e1329] rounded-2xl p-6 border border-white/20 shadow-2xl">
-            <button
-              onClick={() => setShowClientIdModal(false)}
-              className="absolute top-4 right-4 text-slate-400 hover:text-white"
-            >
-              <X className="w-4 h-4" />
-            </button>
-
-            <div className="flex items-center gap-2 mb-3">
-              <div className="p-2 rounded-xl bg-purple-500/20 text-purple-300">
-                <Settings className="w-4 h-4" />
-              </div>
-              <h3 className="text-base font-bold text-white">Google OAuth Client ID</h3>
-            </div>
-
-            <p className="text-xs text-slate-300 leading-relaxed mb-4">
-              To enable authentic Google / Gmail sign-in with your Google Cloud account, paste your Web OAuth Client ID below:
-            </p>
-
-            <form onSubmit={handleSaveClientId} className="space-y-3">
-              <div>
-                <label className="block text-xs font-semibold text-slate-400 mb-1">
-                  Google Client ID (e.g. 12345...apps.googleusercontent.com)
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="xxxx.apps.googleusercontent.com"
-                  value={clientIdInput}
-                  onChange={(e) => setClientIdInput(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl bg-black/50 border border-white/20 text-xs text-white placeholder-slate-500 font-mono focus:border-purple-500 focus:outline-none"
-                />
-              </div>
-
-              <div className="p-3 rounded-xl bg-purple-950/40 border border-purple-500/30 text-[11px] text-purple-200 space-y-1">
-                <p className="font-semibold text-purple-100">Quick Setup Instructions:</p>
-                <p>1. Open Google Cloud Console: <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener noreferrer" className="text-cyan-300 underline">Credentials</a></p>
-                <p>2. Create OAuth Client ID &rarr; Web Application</p>
-                <p>3. Add Authorized Origins:</p>
-                <code className="block bg-black/50 p-1.5 rounded text-[10px] text-cyan-300 font-mono">
-                  https://anime-watchlist-complete.vercel.app<br />
-                  http://localhost:5173
-                </code>
-              </div>
-
-              <div className="flex gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowClientIdModal(false)}
-                  className="flex-1 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-xs font-semibold text-slate-300"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="flex-1 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-xs font-bold text-white shadow-lg"
-                >
-                  Save & Connect Google
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
       {/* Footer */}
       <footer className="relative z-10 border-t border-white/10 bg-[#070913]/90 py-4 px-4 sm:px-6 text-center text-xs text-slate-500">
-        AniCart • Live Indian Standard Time (IST) • MongoDB Cloud Database
+        AniCart • Official Google OAuth • MongoDB Cloud Database
       </footer>
     </div>
   );

@@ -53,8 +53,8 @@ const generateToken = (user) => {
 
 // ==========================================
 // 1. POST /api/auth/google
-// Authentic Google OAuth / Gmail Sign-In
-// Accepts Google GIS credential JWT OR direct Google profile data
+// Authentic Google OAuth / Gmail Sign-In Only
+// Accepts Google GIS credential JWT OR verified Google profile data
 // ==========================================
 router.post('/google', async (req, res) => {
   try {
@@ -77,7 +77,7 @@ router.post('/google', async (req, res) => {
     }
 
     if (!targetEmail || !targetEmail.includes('@')) {
-      return res.status(400).json({ error: 'Valid Google email address is required.' });
+      return res.status(400).json({ error: 'A valid Google / Gmail address is required to sign in.' });
     }
 
     const cleanEmail = targetEmail.toLowerCase().trim();
@@ -169,155 +169,13 @@ router.post('/google', async (req, res) => {
 });
 
 // ==========================================
-// 2. POST /api/auth/register
-// Strict Registration with Validation and Password Hashing
+// 2. POST /api/auth/register & /api/auth/login
+// Locked down to Google Authentication Only
 // ==========================================
-router.post('/register', async (req, res) => {
-  try {
-    const { email, password, name, avatar } = req.body;
-
-    if (!email || !email.includes('@')) {
-      return res.status(400).json({ error: 'Please enter a valid email address.' });
-    }
-
-    if (!password || password.length < 6) {
-      return res.status(400).json({ error: 'Password must be at least 6 characters long.' });
-    }
-
-    const cleanEmail = email.toLowerCase().trim();
-    const cleanName = (name && name.trim()) || cleanEmail.split('@')[0];
-    const cleanAvatar =
-      avatar ||
-      `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(cleanEmail)}&backgroundColor=020617`;
-
-    let user;
-
-    if (isMongoConnected) {
-      const existing = await User.findOne({ email: cleanEmail });
-      if (existing) {
-        return res.status(400).json({
-          error: 'An account with this email already exists. Please sign in or use Google Login.',
-        });
-      }
-
-      user = await User.create({
-        email: cleanEmail,
-        password: hashPassword(password),
-        name: cleanName,
-        avatar: cleanAvatar,
-        bio: 'Anime enthusiast exploring Japanese animation.',
-        createdAt: new Date(),
-      });
-    } else {
-      const db = getLocalDb();
-      const existing = db.users.find((u) => u.email.toLowerCase() === cleanEmail);
-      if (existing) {
-        return res.status(400).json({
-          error: 'An account with this email already exists. Please sign in or use Google Login.',
-        });
-      }
-
-      user = {
-        _id: `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        email: cleanEmail,
-        password: hashPassword(password),
-        name: cleanName,
-        avatar: cleanAvatar,
-        bio: 'Anime enthusiast exploring Japanese animation.',
-        createdAt: new Date().toISOString(),
-      };
-      db.users.push(user);
-      saveLocalDb(db);
-    }
-
-    const token = generateToken(user);
-
-    return res.json({
-      success: true,
-      token,
-      user: {
-        id: user._id || user.id,
-        email: user.email,
-        name: user.name,
-        avatar: user.avatar,
-        bio: user.bio,
-        createdAt: user.createdAt,
-      },
-    });
-  } catch (err) {
-    console.error('Error during user registration:', err);
-    return res.status(500).json({ error: 'Registration failed', details: err.message });
-  }
-});
-
-// ==========================================
-// 3. POST /api/auth/login
-// Strict Sign In with Real Email and Password Verification
-// (Rejects random credentials instead of blindly creating dummy users)
-// ==========================================
-router.post('/login', async (req, res) => {
-  try {
-    const { email, password } = req.body;
-
-    if (!email || !email.includes('@')) {
-      return res.status(400).json({ error: 'Please enter a valid email address.' });
-    }
-
-    if (!password) {
-      return res.status(400).json({ error: 'Please enter your password.' });
-    }
-
-    const cleanEmail = email.toLowerCase().trim();
-    let user;
-
-    if (isMongoConnected) {
-      user = await User.findOne({ email: cleanEmail });
-    } else {
-      const db = getLocalDb();
-      user = db.users.find((u) => u.email.toLowerCase() === cleanEmail);
-    }
-
-    if (!user) {
-      return res.status(404).json({
-        error: 'No account found with this email. Please switch to "Register" or sign in with Google.',
-      });
-    }
-
-    // If user registered with Google and has no local password
-    if (!user.password && user.googleId) {
-      return res.status(400).json({
-        error: 'This account was created with Google. Please use the "Sign In with Google" button.',
-      });
-    }
-
-    // Verify password if a password hash exists
-    if (user.password) {
-      const isValid = verifyPassword(password, user.password);
-      if (!isValid) {
-        return res.status(401).json({
-          error: 'Incorrect password. Please verify your credentials or reset your password.',
-        });
-      }
-    }
-
-    const token = generateToken(user);
-
-    return res.json({
-      success: true,
-      token,
-      user: {
-        id: user._id || user.id,
-        email: user.email,
-        name: user.name,
-        avatar: user.avatar,
-        bio: user.bio,
-        createdAt: user.createdAt,
-      },
-    });
-  } catch (err) {
-    console.error('Error during login:', err);
-    return res.status(500).json({ error: 'Login failed', details: err.message });
-  }
+router.post(['/register', '/login'], async (req, res) => {
+  return res.status(400).json({
+    error: 'Direct email registration is disabled. Please use the "Continue with Google (Gmail)" button to sign in securely with your Google account.',
+  });
 });
 
 // ==========================================
