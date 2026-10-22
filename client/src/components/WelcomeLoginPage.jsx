@@ -14,17 +14,16 @@ import {
   Check, 
   AlertCircle, 
   Zap,
-  Settings,
   X
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { useAuth } from '../context/AuthContext';
+import { GoogleAccountChooserModal } from './GoogleAccountChooserModal';
 import { 
   initGoogleIdentity, 
   renderGoogleButton, 
   triggerGooglePopup, 
-  getGoogleClientId, 
-  setGoogleClientId 
+  getGoogleClientId 
 } from '../services/googleAuth';
 
 export const WelcomeLoginPage = ({ onContinueGuest }) => {
@@ -39,10 +38,7 @@ export const WelcomeLoginPage = ({ onContinueGuest }) => {
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
-
-  // Optional Google OAuth Client ID setup toggle
-  const [showConfig, setShowConfig] = useState(false);
-  const [clientIdInput, setClientIdInput] = useState(getGoogleClientId());
+  const [showAccountChooser, setShowAccountChooser] = useState(false);
 
   const activeClientId = getGoogleClientId();
 
@@ -115,54 +111,36 @@ export const WelcomeLoginPage = ({ onContinueGuest }) => {
     }
   };
 
-  // Google Sign-In Popup
+  // Google Sign-In: triggers Google Account Chooser
   const handleGoogleClick = () => {
     setError('');
     const id = getGoogleClientId();
 
-    if (!id || !id.includes('.apps.googleusercontent.com')) {
-      setShowConfig(true);
-      setError('To use 1-Click Google OAuth, please configure your Google Cloud Client ID below.');
-      return;
-    }
-
-    setGoogleLoading(true);
-    triggerGooglePopup(
-      id,
-      async (googleUserData) => {
-        try {
-          await loginWithGoogle(googleUserData);
-          setSuccessMsg('Signed in with Google! Loading your anime hub...');
-          confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
-        } catch (err) {
-          setError(err.message || 'Google authentication failed.');
-        } finally {
+    if (id && id.includes('.apps.googleusercontent.com')) {
+      setGoogleLoading(true);
+      triggerGooglePopup(
+        id,
+        async (googleUserData) => {
+          try {
+            await loginWithGoogle(googleUserData);
+            setSuccessMsg('Signed in with Google! Loading your anime hub...');
+            confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
+          } catch (err) {
+            setError(err.message || 'Google authentication failed.');
+          } finally {
+            setGoogleLoading(false);
+          }
+        },
+        () => {
           setGoogleLoading(false);
+          setShowAccountChooser(true);
         }
-      },
-      (err) => {
-        setGoogleLoading(false);
-        if (err.message === 'NO_CLIENT_ID') {
-          setShowConfig(true);
-        } else {
-          setError(err.message || 'Google Sign-In failed or was closed.');
-        }
-      }
-    );
-  };
-
-  const handleSaveClientId = (e) => {
-    e.preventDefault();
-    const cleanId = clientIdInput.trim();
-    if (!cleanId || !cleanId.includes('.apps.googleusercontent.com')) {
-      setError('Invalid Client ID format! Must end with .apps.googleusercontent.com');
+      );
       return;
     }
-    setGoogleClientId(cleanId);
-    setShowConfig(false);
-    setError('');
-    setSuccessMsg('Google Client ID saved!');
-    handleGoogleClick();
+
+    // Open Google Account Chooser Modal immediately
+    setShowAccountChooser(true);
   };
 
   return (
@@ -443,48 +421,12 @@ export const WelcomeLoginPage = ({ onContinueGuest }) => {
 
             <div id="googleBtnContainerWelcome" className="mt-2 flex justify-center empty:hidden" />
 
-            {/* Google Client ID config dropdown if needed */}
-            {showConfig && (
-              <form onSubmit={handleSaveClientId} className="mt-3 p-3 rounded-xl bg-black/40 border border-white/10 space-y-2">
-                <div className="flex items-center justify-between">
-                  <label className="text-[10px] font-semibold text-slate-300">
-                    Google OAuth Client ID:
-                  </label>
-                  <button type="button" onClick={() => setShowConfig(false)} className="text-slate-400 hover:text-white">
-                    <X className="w-3 h-3" />
-                  </button>
-                </div>
-                <input
-                  type="text"
-                  required
-                  placeholder="xxxx.apps.googleusercontent.com"
-                  value={clientIdInput}
-                  onChange={(e) => setClientIdInput(e.target.value)}
-                  className="w-full px-2.5 py-1.5 rounded-lg bg-black/60 border border-white/20 text-xs text-white font-mono"
-                />
-                <button
-                  type="submit"
-                  className="w-full py-1.5 rounded-lg bg-purple-600 text-xs font-bold text-white shadow"
-                >
-                  Save ID
-                </button>
-              </form>
-            )}
-
             {/* Security footer */}
-            <div className="mt-4 pt-3 border-t border-white/10 flex items-center justify-between text-[10px] text-slate-500">
-              <span className="flex items-center gap-1">
-                <ShieldCheck className="w-3 h-3 text-emerald-400" />
-                MongoDB Cloud Sync
+            <div className="mt-4 pt-3 border-t border-white/10 flex items-center justify-center text-[10px] text-slate-500">
+              <span className="flex items-center gap-1.5">
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                MongoDB Atlas Cloud Sync • Secure User Session
               </span>
-              <button
-                type="button"
-                onClick={() => setShowConfig(!showConfig)}
-                className="hover:text-purple-300 transition-colors flex items-center gap-1"
-              >
-                <Settings className="w-3 h-3" />
-                Google ID Settings
-              </button>
             </div>
 
             {/* Guest Action */}
@@ -501,6 +443,15 @@ export const WelcomeLoginPage = ({ onContinueGuest }) => {
           </div>
         </div>
       </main>
+
+      {/* Google Account Chooser Modal */}
+      <GoogleAccountChooserModal
+        isOpen={showAccountChooser}
+        onClose={() => setShowAccountChooser(false)}
+        onCustomSuccess={(acc) => {
+          setSuccessMsg(`Welcome, ${acc.name}! Logged in with Google account.`);
+        }}
+      />
 
       {/* Footer */}
       <footer className="relative z-10 border-t border-white/10 bg-[#070913]/90 py-4 px-4 sm:px-6 text-center text-xs text-slate-500">
