@@ -169,13 +169,178 @@ router.post('/google', async (req, res) => {
 });
 
 // ==========================================
-// 2. POST /api/auth/register & /api/auth/login
-// Locked down to Google Authentication Only
+// 2. POST /api/auth/register
+// Register with Email / Gmail & Password
 // ==========================================
-router.post(['/register', '/login'], async (req, res) => {
-  return res.status(400).json({
-    error: 'Direct email registration is disabled. Please use the "Continue with Google (Gmail)" button to sign in securely with your Google account.',
-  });
+router.post('/register', async (req, res) => {
+  try {
+    const { email, password, name, avatar } = req.body;
+
+    if (!email || !email.includes('@')) {
+      return res.status(400).json({ error: 'Please enter a valid email address.' });
+    }
+
+    if (!password || password.length < 4) {
+      return res.status(400).json({ error: 'Password must be at least 4 characters.' });
+    }
+
+    const cleanEmail = email.toLowerCase().trim();
+    const cleanName = (name && name.trim()) || cleanEmail.split('@')[0];
+    const cleanAvatar =
+      avatar ||
+      `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(cleanEmail)}&backgroundColor=020617`;
+
+    let user;
+
+    if (isMongoConnected) {
+      user = await User.findOne({ email: cleanEmail });
+      if (!user) {
+        user = await User.create({
+          email: cleanEmail,
+          password: hashPassword(password),
+          name: cleanName,
+          avatar: cleanAvatar,
+          bio: 'Anime enthusiast exploring Japanese animation.',
+          createdAt: new Date(),
+        });
+      } else {
+        // Update password if not set
+        if (!user.password) {
+          user.password = hashPassword(password);
+          await user.save();
+        }
+      }
+    } else {
+      const db = getLocalDb();
+      user = db.users.find((u) => u.email.toLowerCase() === cleanEmail);
+      if (!user) {
+        user = {
+          _id: `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          email: cleanEmail,
+          password: hashPassword(password),
+          name: cleanName,
+          avatar: cleanAvatar,
+          bio: 'Anime enthusiast exploring Japanese animation.',
+          createdAt: new Date().toISOString(),
+        };
+        db.users.push(user);
+        saveLocalDb(db);
+      } else {
+        if (!user.password) {
+          user.password = hashPassword(password);
+          saveLocalDb(db);
+        }
+      }
+    }
+
+    const token = generateToken(user);
+
+    return res.json({
+      success: true,
+      token,
+      user: {
+        id: user._id || user.id,
+        email: user.email,
+        name: user.name,
+        avatar: user.avatar,
+        bio: user.bio,
+        createdAt: user.createdAt,
+      },
+    });
+  } catch (err) {
+    console.error('Error during registration:', err);
+    return res.status(500).json({ error: 'Registration failed', details: err.message });
+  }
+});
+
+// ==========================================
+// 3. POST /api/auth/login
+// Sign In with Email / Gmail & Password
+// ==========================================
+router.post('/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    if (!email || !email.includes('@')) {
+      return res.status(400).json({ error: 'Please enter your email address.' });
+    }
+
+    if (!password) {
+      return res.status(400).json({ error: 'Please enter your password.' });
+    }
+
+    const cleanEmail = email.toLowerCase().trim();
+    let user;
+
+    if (isMongoConnected) {
+      user = await User.findOne({ email: cleanEmail });
+      
+      // If user doesn't exist yet, automatically create account with this email & password
+      if (!user) {
+        user = await User.create({
+          email: cleanEmail,
+          password: hashPassword(password),
+          name: cleanEmail.split('@')[0],
+          avatar: `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(cleanEmail)}&backgroundColor=020617`,
+          bio: 'Anime enthusiast exploring Japanese animation.',
+          createdAt: new Date(),
+        });
+      } else if (user.password) {
+        // If password is set, verify it
+        const valid = verifyPassword(password, user.password);
+        if (!valid) {
+          return res.status(401).json({ error: 'Incorrect password. Please verify and try again.' });
+        }
+      } else {
+        // Set password for existing user without password
+        user.password = hashPassword(password);
+        await user.save();
+      }
+    } else {
+      const db = getLocalDb();
+      user = db.users.find((u) => u.email.toLowerCase() === cleanEmail);
+
+      if (!user) {
+        user = {
+          _id: `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          email: cleanEmail,
+          password: hashPassword(password),
+          name: cleanEmail.split('@')[0],
+          avatar: `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(cleanEmail)}&backgroundColor=020617`,
+          bio: 'Anime enthusiast exploring Japanese animation.',
+          createdAt: new Date().toISOString(),
+        };
+        db.users.push(user);
+        saveLocalDb(db);
+      } else if (user.password) {
+        const valid = verifyPassword(password, user.password);
+        if (!valid) {
+          return res.status(401).json({ error: 'Incorrect password. Please verify and try again.' });
+        }
+      } else {
+        user.password = hashPassword(password);
+        saveLocalDb(db);
+      }
+    }
+
+    const token = generateToken(user);
+
+    return res.json({
+      success: true,
+      token,
+      user: {
+        id: user._id || user.id,
+        email: user.email,
+        name: user.name,
+        avatar: user.avatar,
+        bio: user.bio,
+        createdAt: user.createdAt,
+      },
+    });
+  } catch (err) {
+    console.error('Error during login:', err);
+    return res.status(500).json({ error: 'Login failed', details: err.message });
+  }
 });
 
 // ==========================================
