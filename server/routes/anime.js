@@ -547,6 +547,93 @@ router.get(['/airing-ist', '/airing'], async (req, res) => {
         });
       }
 
+      // Third, check for recently released batch-dropped ONA anime (e.g., Cyberpunk: Edgerunners 2 on Netflix)
+      // that released within the current week's broadcast window
+      const batchDroppedQuery = `
+        query {
+          Page(page: 1, perPage: 25) {
+            media(season: FALL, seasonYear: 2026, format_in: [ONA, TV], status_in: [FINISHED, RELEASING], sort: [START_DATE_DESC, POPULARITY_DESC]) {
+              id
+              idMal
+              title {
+                romaji
+                english
+                native
+              }
+              coverImage {
+                extraLarge
+                large
+                color
+              }
+              bannerImage
+              format
+              episodes
+              status
+              genres
+              averageScore
+              popularity
+              description(asHtml: false)
+              startDate {
+                year
+                month
+                day
+              }
+              studios(isMain: true) {
+                nodes {
+                  name
+                }
+              }
+              trailer {
+                id
+                site
+              }
+            }
+          }
+        }
+      `;
+
+      try {
+        const batchRes = await axios.post('https://graphql.anilist.co', { query: batchDroppedQuery }, { timeout: 8000 });
+        const batchMedia = batchRes.data?.data?.Page?.media || [];
+        for (const m of batchMedia) {
+          if (!m || seenIds.has(m.id)) continue;
+          if (m.startDate && m.startDate.year && m.startDate.month && m.startDate.day) {
+            const releaseTimeSec = Math.floor(Date.UTC(m.startDate.year, m.startDate.month - 1, m.startDate.day, 4, 30, 0) / 1000);
+            if (releaseTimeSec >= startOfTodayIST - (4 * 24 * 3600) && releaseTimeSec <= endOfRollingWeekIST) {
+              seenIds.add(m.id);
+              const istData = formatIST(releaseTimeSec);
+              const title = m.title?.english || m.title?.romaji || 'Unknown Title';
+
+              enriched.push({
+                scheduleId: m.id,
+                animeId: m.id,
+                malId: m.idMal,
+                title,
+                englishTitle: m.title?.english,
+                romajiTitle: m.title?.romaji,
+                nativeTitle: m.title?.native,
+                episode: m.episodes ? `All ${m.episodes} Episodes (Batch Drop)` : 'Complete',
+                totalEpisodes: m.episodes,
+                format: m.format || 'ONA',
+                coverImage: getBestCoverImage(m.coverImage),
+                coverColor: m.coverImage?.color,
+                bannerImage: m.bannerImage || getBestCoverImage(m.coverImage),
+                genres: m.genres || [],
+                score: m.averageScore ? (m.averageScore / 10).toFixed(1) : null,
+                imdbScore: computeImdbRating(title, m.title?.english, m.averageScore),
+                studio: m.studios?.nodes?.[0]?.name || 'Animation Studio',
+                description: m.description,
+                trailer: m.trailer,
+                status: m.status,
+                ist: istData,
+              });
+            }
+          }
+        }
+      } catch (batchErr) {
+        console.warn('Failed to query batch-dropped anime:', batchErr.message);
+      }
+
       pageInfo = {
         currentPage: 1,
         hasNextPage: schedulesList.length >= 280,
