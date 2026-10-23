@@ -32,6 +32,17 @@ export const NotificationDrawer = ({ isOpen, onClose, onOpenDetail }) => {
     }
   }, [isOpen]);
 
+  // Escape key handler to close drawer instantly
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape' && isOpen) {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
   const handleRequestPermission = async () => {
     const res = await notificationService.requestPermission();
     setPermission(res);
@@ -65,11 +76,11 @@ export const NotificationDrawer = ({ isOpen, onClose, onOpenDetail }) => {
 
   return (
     <div 
-      className="fixed inset-0 z-[80] flex items-start justify-end p-2 sm:p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200"
+      className="fixed inset-0 z-[80] pointer-events-auto flex items-start justify-end p-2 sm:p-4 bg-black/75 backdrop-blur-md animate-in fade-in duration-200 cursor-pointer"
       onClick={onClose}
     >
       <div 
-        className="w-full max-w-md my-14 sm:my-16 rounded-3xl bg-[#0e1329]/95 border border-purple-500/30 p-5 sm:p-6 shadow-2xl shadow-purple-950/60 text-slate-100 space-y-4 max-h-[85vh] flex flex-col overflow-hidden"
+        className="w-full max-w-md my-14 sm:my-16 rounded-3xl bg-[#0e1329] border border-purple-500/30 p-5 sm:p-6 shadow-2xl shadow-purple-950/60 text-slate-100 space-y-4 max-h-[85vh] flex flex-col overflow-hidden pointer-events-auto cursor-default"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Drawer Header */}
@@ -89,10 +100,14 @@ export const NotificationDrawer = ({ isOpen, onClose, onOpenDetail }) => {
           </div>
 
           <button
-            onClick={onClose}
-            className="p-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition-colors"
+            onClick={(e) => {
+              e.stopPropagation();
+              onClose();
+            }}
+            className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white transition-all cursor-pointer border border-white/10 flex items-center justify-center"
+            title="Close Drawer (Esc)"
           >
-            <X className="w-4 h-4" />
+            <X className="w-5 h-5" />
           </button>
         </div>
 
@@ -234,18 +249,22 @@ export const NotificationDrawer = ({ isOpen, onClose, onOpenDetail }) => {
           )}
         </div>
 
-        {/* Footer */}
-        <div className="pt-2 border-t border-white/10 flex items-center justify-between text-[10px] text-slate-500">
-          <span className="flex items-center gap-1 font-mono">
-            <span className="text-amber-400">🇮🇳</span> Indian Standard Time (UTC+5:30)
-          </span>
+        {/* Footer with Back Button */}
+        <div className="pt-3 border-t border-white/10 flex items-center justify-between gap-2 text-xs">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white font-semibold transition-all flex items-center gap-1.5 cursor-pointer shadow-sm active:scale-95"
+          >
+            <span>← Back to Platform</span>
+          </button>
+
           {notifications.length > 0 && (
             <button
               onClick={() => {
                 notificationService.saveInAppNotifications([]);
                 setNotifications([]);
               }}
-              className="text-purple-400 hover:text-purple-300 font-semibold transition-colors"
+              className="text-purple-400 hover:text-purple-300 font-semibold transition-colors text-[11px]"
             >
               Clear all
             </button>

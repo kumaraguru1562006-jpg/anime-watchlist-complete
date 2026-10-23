@@ -25,7 +25,6 @@ import {
 } from 'lucide-react';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
-import { NotificationDrawer } from './NotificationDrawer';
 import { notificationService } from '../services/notificationService';
 
 export const LiquidGlassNavbar = ({ 
@@ -34,13 +33,13 @@ export const LiquidGlassNavbar = ({
   onOpenSearch, 
   onOpenStats, 
   onOpenDetail,
+  onOpenNotifications,
   onGoToLogin 
 }) => {
   const { user, logout, openAuthModal, openProfileModal, stats, watchlistMap } = useAuth();
   const [istTime, setIstTime] = useState('');
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(() => notificationService.getUnreadCount());
   const [isScrolled, setIsScrolled] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -283,9 +282,14 @@ export const LiquidGlassNavbar = ({
 
             {/* Notification Bell Button */}
             <button
-              onClick={() => setIsNotificationOpen(true)}
+              onClick={() => {
+                if (onOpenNotifications) {
+                  onOpenNotifications();
+                }
+                setUnreadCount(notificationService.getUnreadCount());
+              }}
               title="Episode Airing Alerts (IST) & Push Notifications"
-              className="relative flex items-center justify-center p-1.5 sm:px-2 py-1 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 hover:text-white text-[11px] transition-all group"
+              className="relative flex items-center justify-center p-1.5 sm:px-2 py-1 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 hover:text-white text-[11px] transition-all group cursor-pointer"
             >
               <Bell className="w-3.5 h-3.5 text-purple-400 group-hover:text-amber-300 transition-colors" />
               {unreadCount > 0 && (
@@ -428,16 +432,6 @@ export const LiquidGlassNavbar = ({
           </div>
         </div>
       )}
-
-      {/* In-App & Push Notification Drawer */}
-      <NotificationDrawer
-        isOpen={isNotificationOpen}
-        onClose={() => {
-          setIsNotificationOpen(false);
-          setUnreadCount(notificationService.getUnreadCount());
-        }}
-        onOpenDetail={onOpenDetail}
-      />
     </header>
   );
 };
