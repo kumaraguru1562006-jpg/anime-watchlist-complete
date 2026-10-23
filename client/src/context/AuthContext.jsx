@@ -300,6 +300,110 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  /**
+   * Toggle Pin Ongoing / Favorite Anime
+   * Pinned anime are displayed in a separate dedicated showcase and given top priority
+   */
+  const togglePinAnime = async (anime, explicitPinnedState) => {
+    if (!user) {
+      setIsAuthModalOpen(true);
+      return false;
+    }
+
+    const animeId = anime.id || anime.animeId;
+    const existing = watchlistMap[animeId];
+    const newPinnedState = explicitPinnedState !== undefined 
+      ? explicitPinnedState 
+      : (existing ? !existing.isPinned : true);
+
+    try {
+      let updatedItem;
+      if (existing) {
+        const res = await api.togglePinWatchlist(animeId, newPinnedState);
+        updatedItem = res.item || { ...existing, isPinned: newPinnedState };
+      } else {
+        // If not in watchlist yet, add it as 'watching' (ongoing) and pinned!
+        const res = await api.addToWatchlist({
+          animeId,
+          title: anime.title,
+          englishTitle: anime.englishTitle,
+          romajiTitle: anime.romajiTitle,
+          coverImage: anime.coverImage,
+          bannerImage: anime.bannerImage,
+          format: anime.format,
+          totalEpisodes: anime.episodes || anime.totalEpisodes,
+          status: 'watching',
+          genres: anime.genres,
+          airingStatus: anime.status || anime.airingStatus,
+          isPinned: true,
+        });
+        updatedItem = res.item;
+      }
+
+      setWatchlistMap((prev) => {
+        const next = {
+          ...prev,
+          [animeId]: { ...(prev[animeId] || {}), ...updatedItem, isPinned: newPinnedState },
+        };
+        try {
+          localStorage.setItem('anisphere_cached_watchlist_map', JSON.stringify(next));
+        } catch (e) {}
+        return next;
+      });
+
+      refreshWatchlistAndStats();
+      return true;
+    } catch (err) {
+      alert(`Could not update pinned anime: ${err.message}`);
+      return false;
+    }
+  };
+
+  /**
+   * Quick +1 / -1 Episode Progress updater
+   */
+  const updateEpisodeProgress = async (animeId, delta) => {
+    if (!user) {
+      setIsAuthModalOpen(true);
+      return false;
+    }
+
+    const existing = watchlistMap[animeId];
+    if (!existing) return false;
+
+    const currentEp = existing.episodesWatched || 0;
+    const newEp = Math.max(0, currentEp + delta);
+    if (existing.totalEpisodes && newEp > existing.totalEpisodes) return false;
+
+    const isCompleted = existing.totalEpisodes && newEp >= existing.totalEpisodes;
+    const newStatus = isCompleted ? 'completed' : (existing.status === 'plan_to_watch' ? 'watching' : existing.status);
+
+    try {
+      const res = await api.updateWatchlistItem(animeId, {
+        episodesWatched: newEp,
+        status: newStatus,
+      });
+
+      const updatedItem = res.item || { ...existing, episodesWatched: newEp, status: newStatus };
+      setWatchlistMap((prev) => {
+        const next = {
+          ...prev,
+          [animeId]: { ...prev[animeId], ...updatedItem },
+        };
+        try {
+          localStorage.setItem('anisphere_cached_watchlist_map', JSON.stringify(next));
+        } catch (e) {}
+        return next;
+      });
+
+      refreshWatchlistAndStats();
+      return true;
+    } catch (err) {
+      console.error('Failed to update progress:', err);
+      return false;
+    }
+  };
+
   const logout = async () => {
     try {
       await firebaseSignOut();
@@ -332,6 +436,8 @@ export const AuthProvider = ({ children }) => {
         watchlistMap,
         refreshStats: refreshWatchlistAndStats,
         toggleWatchlistStatus,
+        togglePinAnime,
+        updateEpisodeProgress,
         loginWithEmail,
         registerWithEmail,
         loginWithGoogle,

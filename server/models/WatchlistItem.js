@@ -78,6 +78,11 @@ const watchlistItemSchema = new mongoose.Schema({
     type: Boolean,
     default: false,
   },
+  isPinned: {
+    type: Boolean,
+    default: false,
+    index: true,
+  },
   updatedAt: {
     type: Date,
     default: Date.now,

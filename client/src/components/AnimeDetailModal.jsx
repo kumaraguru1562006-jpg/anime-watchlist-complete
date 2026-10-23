@@ -11,13 +11,14 @@ import {
   Play, 
   ExternalLink,
   Sparkles,
-  Share2
+  Share2,
+  Pin
 } from 'lucide-react';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 
 export const AnimeDetailModal = ({ animeId, onClose, onActionSuccess }) => {
-  const { user, openAuthModal, refreshStats } = useAuth();
+  const { user, openAuthModal, refreshStats, togglePinAnime, watchlistMap } = useAuth();
   const [detail, setDetail] = useState(null);
   const [loading, setLoading] = useState(true);
   const [actionDone, setActionDone] = useState('');
@@ -124,6 +125,13 @@ export const AnimeDetailModal = ({ animeId, onClose, onActionSuccess }) => {
                     <span className="px-2.5 py-0.5 rounded-lg bg-purple-500/20 text-purple-300 border border-purple-500/30 text-[11px] font-mono font-bold">
                       {detail.format || 'TV'}
                     </span>
+
+                    {Boolean(watchlistMap?.[detail.id]?.isPinned) && (
+                      <span className="px-2.5 py-0.5 rounded-lg bg-gradient-to-r from-amber-500/20 to-rose-500/20 text-amber-300 border border-amber-500/40 text-[11px] font-mono font-bold flex items-center gap-1 shadow-sm">
+                        <Pin className="w-3 h-3 fill-amber-400 rotate-45" />
+                        Pinned Ongoing
+                      </span>
+                    )}
                     
                     {/* IMDb Rating Badge */}
                     <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg bg-black/70 border border-white/20">
@@ -182,6 +190,31 @@ export const AnimeDetailModal = ({ animeId, onClose, onActionSuccess }) => {
 
               {/* Action Buttons */}
               <div className="flex flex-wrap items-center gap-3 pt-1">
+                {/* Pin Ongoing Button */}
+                <button
+                  onClick={async () => {
+                    if (!user) {
+                      openAuthModal();
+                      return;
+                    }
+                    await togglePinAnime(detail);
+                    setActionDone('pinned');
+                    if (onActionSuccess) onActionSuccess();
+                    setTimeout(() => setActionDone(''), 2500);
+                  }}
+                  className={`px-5 py-2.5 rounded-xl font-semibold text-xs transition-all flex items-center gap-2 ${
+                    Boolean(watchlistMap?.[detail.id]?.isPinned)
+                      ? 'bg-gradient-to-r from-amber-500 to-rose-500 text-black font-extrabold shadow-lg shadow-amber-500/25'
+                      : 'bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-300'
+                  }`}
+                  title={Boolean(watchlistMap?.[detail.id]?.isPinned) ? "Unpin anime" : "Pin ongoing anime to your separate showcase shelf"}
+                >
+                  <Pin className={`w-4 h-4 rotate-45 ${Boolean(watchlistMap?.[detail.id]?.isPinned) ? 'fill-black' : 'fill-amber-400'}`} />
+                  <span>
+                    {Boolean(watchlistMap?.[detail.id]?.isPinned) ? 'Pinned Ongoing' : 'Pin Ongoing Anime'}
+                  </span>
+                </button>
+
                 <button
                   onClick={() => handleAdd('plan_to_watch')}
                   className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-semibold text-xs shadow-lg shadow-purple-600/30 transition-all flex items-center gap-2"

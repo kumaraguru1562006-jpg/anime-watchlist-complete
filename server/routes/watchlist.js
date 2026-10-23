@@ -7,7 +7,7 @@ import { requireAuth } from '../middleware/auth.js';
 const router = express.Router();
 
 // GET /api/watchlist
-// Query params: ?status=plan_to_watch | completed | watching | all
+// Query params: ?status=plan_to_watch | completed | watching | pinned | all
 router.get('/', requireAuth, async (req, res) => {
   try {
     const userId = req.user.id;
@@ -16,17 +16,30 @@ router.get('/', requireAuth, async (req, res) => {
     if (isMongoConnected) {
       const query = { userId };
       if (status && status !== 'all') {
-        query.status = status;
+        if (status === 'pinned') {
+          query.isPinned = true;
+        } else {
+          query.status = status;
+        }
       }
-      const items = await WatchlistItem.find(query).sort({ updatedAt: -1 });
+      const items = await WatchlistItem.find(query).sort({ isPinned: -1, updatedAt: -1 });
       return res.json({ items });
     } else {
       const db = getLocalDb();
       let items = db.watchlist.filter((item) => item.userId === userId);
       if (status && status !== 'all') {
-        items = items.filter((item) => item.status === status);
+        if (status === 'pinned') {
+          items = items.filter((item) => item.isPinned === true);
+        } else {
+          items = items.filter((item) => item.status === status);
+        }
       }
-      items.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
+      items.sort((a, b) => {
+        if (Boolean(b.isPinned) !== Boolean(a.isPinned)) {
+          return (b.isPinned ? 1 : 0) - (a.isPinned ? 1 : 0);
+        }
+        return new Date(b.updatedAt) - new Date(a.updatedAt);
+      });
       return res.json({ items });
     }
   } catch (err) {
@@ -47,6 +60,7 @@ router.get('/stats', requireAuth, async (req, res) => {
       const completedCount = items.filter((i) => i.status === 'completed').length;
       const watchingCount = items.filter((i) => i.status === 'watching').length;
       const droppedCount = items.filter((i) => i.status === 'dropped').length;
+      const pinnedCount = items.filter((i) => i.isPinned === true).length;
 
       const totalEpisodesWatched = items.reduce((acc, i) => acc + (i.episodesWatched || 0), 0);
       const ratedItems = items.filter((i) => i.userScore > 0);
@@ -60,6 +74,7 @@ router.get('/stats', requireAuth, async (req, res) => {
         completedCount,
         watchingCount,
         droppedCount,
+        pinnedCount,
         totalEpisodesWatched,
         averageScore,
       });
@@ -70,6 +85,7 @@ router.get('/stats', requireAuth, async (req, res) => {
       const completedCount = items.filter((i) => i.status === 'completed').length;
       const watchingCount = items.filter((i) => i.status === 'watching').length;
       const droppedCount = items.filter((i) => i.status === 'dropped').length;
+      const pinnedCount = items.filter((i) => i.isPinned === true).length;
 
       const totalEpisodesWatched = items.reduce((acc, i) => acc + (i.episodesWatched || 0), 0);
       const ratedItems = items.filter((i) => i.userScore > 0);
@@ -83,6 +99,7 @@ router.get('/stats', requireAuth, async (req, res) => {
         completedCount,
         watchingCount,
         droppedCount,
+        pinnedCount,
         totalEpisodesWatched,
         averageScore,
       });
@@ -166,6 +183,7 @@ router.post('/', requireAuth, async (req, res) => {
       year,
       season,
       airingStatus,
+      isPinned,
     } = req.body;
 
     if (!animeId || !title) {
@@ -183,6 +201,7 @@ router.post('/', requireAuth, async (req, res) => {
         if (totalEpisodes !== undefined) existing.totalEpisodes = totalEpisodes;
         if (userScore !== undefined) existing.userScore = userScore;
         if (notes !== undefined) existing.notes = notes;
+        if (isPinned !== undefined) existing.isPinned = Boolean(isPinned);
         existing.updatedAt = new Date();
         await existing.save();
         return res.json({ success: true, item: existing, updated: true });
@@ -206,6 +225,7 @@ router.post('/', requireAuth, async (req, res) => {
         year,
         season,
         airingStatus,
+        isPinned: Boolean(isPinned) || false,
         updatedAt: new Date(),
       });
 
@@ -224,6 +244,7 @@ router.post('/', requireAuth, async (req, res) => {
         if (totalEpisodes !== undefined) item.totalEpisodes = totalEpisodes;
         if (userScore !== undefined) item.userScore = userScore;
         if (notes !== undefined) item.notes = notes;
+        if (isPinned !== undefined) item.isPinned = Boolean(isPinned);
         item.updatedAt = new Date().toISOString();
         db.watchlist[existingIndex] = item;
         saveLocalDb(db);
@@ -249,6 +270,7 @@ router.post('/', requireAuth, async (req, res) => {
         year,
         season,
         airingStatus,
+        isPinned: Boolean(isPinned) || false,
         updatedAt: new Date().toISOString(),
         createdAt: new Date().toISOString(),
       };
@@ -264,12 +286,12 @@ router.post('/', requireAuth, async (req, res) => {
 });
 
 // PUT /api/watchlist/:animeId
-// Update status, progress, score, notes
+// Update status, progress, score, notes, isPinned
 router.put('/:animeId', requireAuth, async (req, res) => {
   try {
     const userId = req.user.id;
     const animeId = Number(req.params.animeId);
-    const { status, episodesWatched, userScore, notes } = req.body;
+    const { status, episodesWatched, userScore, notes, isPinned } = req.body;
 
     if (isMongoConnected) {
       const item = await WatchlistItem.findOne({ userId, animeId });
@@ -281,6 +303,7 @@ router.put('/:animeId', requireAuth, async (req, res) => {
       if (episodesWatched !== undefined) item.episodesWatched = episodesWatched;
       if (userScore !== undefined) item.userScore = userScore;
       if (notes !== undefined) item.notes = notes;
+      if (isPinned !== undefined) item.isPinned = Boolean(isPinned);
       item.updatedAt = new Date();
 
       await item.save();
@@ -300,6 +323,7 @@ router.put('/:animeId', requireAuth, async (req, res) => {
       if (episodesWatched !== undefined) item.episodesWatched = episodesWatched;
       if (userScore !== undefined) item.userScore = userScore;
       if (notes !== undefined) item.notes = notes;
+      if (isPinned !== undefined) item.isPinned = Boolean(isPinned);
       item.updatedAt = new Date().toISOString();
 
       db.watchlist[itemIndex] = item;
@@ -309,6 +333,48 @@ router.put('/:animeId', requireAuth, async (req, res) => {
   } catch (err) {
     console.error('Error updating watchlist item:', err);
     return res.status(500).json({ error: 'Failed to update watchlist item' });
+  }
+});
+
+// PUT /api/watchlist/:animeId/pin
+// Toggle or set pinned status for an anime
+router.put('/:animeId/pin', requireAuth, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const animeId = Number(req.params.animeId);
+    const { isPinned } = req.body;
+
+    if (isMongoConnected) {
+      let item = await WatchlistItem.findOne({ userId, animeId });
+      if (!item) {
+        return res.status(404).json({ error: 'Watchlist item not found' });
+      }
+
+      item.isPinned = isPinned !== undefined ? Boolean(isPinned) : !item.isPinned;
+      item.updatedAt = new Date();
+      await item.save();
+      return res.json({ success: true, item });
+    } else {
+      const db = getLocalDb();
+      const itemIndex = db.watchlist.findIndex(
+        (i) => i.userId === userId && Number(i.animeId) === animeId
+      );
+
+      if (itemIndex === -1) {
+        return res.status(404).json({ error: 'Watchlist item not found' });
+      }
+
+      const item = db.watchlist[itemIndex];
+      item.isPinned = isPinned !== undefined ? Boolean(isPinned) : !item.isPinned;
+      item.updatedAt = new Date().toISOString();
+
+      db.watchlist[itemIndex] = item;
+      saveLocalDb(db);
+      return res.json({ success: true, item });
+    }
+  } catch (err) {
+    console.error('Error toggling pin status:', err);
+    return res.status(500).json({ error: 'Failed to update pin status' });
   }
 });
 

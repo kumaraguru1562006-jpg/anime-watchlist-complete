@@ -132,6 +132,11 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify(updateData),
     }),
+  togglePinWatchlist: (animeId, isPinned) =>
+    authFetch(`/watchlist/${animeId}/pin`, {
+      method: 'PUT',
+      body: JSON.stringify({ isPinned }),
+    }),
   removeFromWatchlist: (animeId) =>
     authFetch(`/watchlist/${animeId}`, {
       method: 'DELETE',

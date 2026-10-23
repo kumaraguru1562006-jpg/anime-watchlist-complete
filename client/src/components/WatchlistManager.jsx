@@ -17,17 +17,19 @@ import {
   Award,
   X,
   Share2,
-  Download
+  Download,
+  Pin
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { ShareWatchedModal } from './ShareWatchedModal';
 import { DownloadWatchedModal } from './DownloadWatchedModal';
+import { PinnedOngoingShelf } from './PinnedOngoingShelf';
 
 export const WatchlistManager = ({ initialStatus = 'plan_to_watch', onOpenDetail, onBrowseAiring }) => {
-  const { user, openAuthModal, stats, refreshStats } = useAuth();
-  const [activeSubTab, setActiveSubTab] = useState(initialStatus); // 'plan_to_watch' | 'completed' | 'watching' | 'all'
+  const { user, openAuthModal, stats, refreshStats, togglePinAnime, watchlistMap } = useAuth();
+  const [activeSubTab, setActiveSubTab] = useState(initialStatus); // 'plan_to_watch' | 'completed' | 'watching' | 'pinned' | 'all'
   
   // Instant cache hydration for watchlist
   const [items, setItems] = useState(() => {
@@ -278,10 +280,31 @@ export const WatchlistManager = ({ initialStatus = 'plan_to_watch', onOpenDetail
         </div>
       </div>
 
+      {/* Pinned Ongoing Anime Showcase Shelf */}
+      <PinnedOngoingShelf 
+        onOpenDetail={onOpenDetail} 
+        onBrowseAiring={onBrowseAiring} 
+      />
+
       {/* Tabs Bar & Search */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-2">
         {/* Watchlist Sub-tabs */}
         <div className="flex items-center gap-1.5 p-1 rounded-xl bg-black/30 border border-white/10 overflow-x-auto scrollbar-none">
+          <button
+            onClick={() => setActiveSubTab('pinned')}
+            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-1.5 ${
+              activeSubTab === 'pinned'
+                ? 'bg-gradient-to-r from-amber-500 to-rose-500 text-black font-extrabold shadow-lg shadow-amber-500/30'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <Pin className="w-3.5 h-3.5 rotate-45" />
+            <span>Pinned</span>
+            <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-black/30 font-mono">
+              {stats.pinnedCount || Object.values(watchlistMap || {}).filter(i => i.isPinned).length || 0}
+            </span>
+          </button>
+
           <button
             onClick={() => setActiveSubTab('plan_to_watch')}
             className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-1.5 ${
@@ -469,6 +492,12 @@ export const WatchlistManager = ({ initialStatus = 'plan_to_watch', onOpenDetail
                 />
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 mb-1 flex-wrap">
+                    {item.isPinned && (
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-300 border border-amber-500/40 flex items-center gap-1 shadow-sm">
+                        <Pin className="w-2.5 h-2.5 fill-amber-400 rotate-45" />
+                        Pinned
+                      </span>
+                    )}
                     <span
                       className={`text-[10px] font-semibold px-2 py-0.5 rounded-md border ${
                         item.status === 'completed'
@@ -570,6 +599,22 @@ export const WatchlistManager = ({ initialStatus = 'plan_to_watch', onOpenDetail
                   <option value="completed" className="bg-[#0e1329]">Watched</option>
                   <option value="dropped" className="bg-[#0e1329]">Dropped</option>
                 </select>
+
+                {/* Pin Ongoing Button */}
+                <button
+                  onClick={async () => {
+                    await togglePinAnime(item);
+                    await loadWatchlist();
+                  }}
+                  className={`p-2 rounded-xl border transition-all ${
+                    item.isPinned
+                      ? 'bg-amber-500/25 text-amber-300 border-amber-500/50 shadow-md shadow-amber-500/20'
+                      : 'bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white border-white/10'
+                  }`}
+                  title={item.isPinned ? "Unpin ongoing anime" : "Pin ongoing anime to top shelf"}
+                >
+                  <Pin className={`w-3.5 h-3.5 rotate-45 ${item.isPinned ? 'fill-amber-400 text-amber-400' : ''}`} />
+                </button>
 
                 {/* Notes Button */}
                 <button
