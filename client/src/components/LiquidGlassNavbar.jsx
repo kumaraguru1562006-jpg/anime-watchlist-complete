@@ -132,7 +132,7 @@ export const LiquidGlassNavbar = ({
   return (
     <header className="fixed top-0 left-0 right-0 z-50 px-2 sm:px-4 lg:px-6 pt-2.5 sm:pt-3 pointer-events-none">
       <div 
-        className={`pointer-events-auto max-w-7xl mx-auto rounded-2xl transition-all duration-300 liquid-glass-nav px-3 sm:px-4 py-2 sm:py-2.5 flex items-center justify-between gap-2 sm:gap-3 ${
+        className={`pointer-events-auto max-w-7xl mx-auto rounded-2xl transition-all duration-300 liquid-glass-nav px-2.5 sm:px-4 py-1.5 sm:py-2.5 flex items-center justify-between gap-1.5 sm:gap-3 ${
           isScrolled ? 'shadow-2xl shadow-purple-950/50 bg-[#0d1122]/90' : 'bg-[#0d1122]/75'
         }`}
       >
@@ -201,10 +201,10 @@ export const LiquidGlassNavbar = ({
           
           {/* Unified Tool Capsule: Keeps IST, Daily Sync, and Search Perfectly in Box */}
           <div className="flex items-center gap-1 p-1 rounded-xl bg-black/40 border border-white/10">
-            {/* IST Clock */}
+            {/* IST Clock (Always Visible on Mobile and Desktop) */}
             <div 
               title="Indian Standard Time (IST UTC+5:30) Live Clock"
-              className="hidden sm:flex items-center gap-1 px-2 py-1 rounded-lg bg-purple-950/40 text-purple-200 text-[11px] font-mono select-none"
+              className="flex items-center gap-1 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-lg bg-purple-950/60 border border-purple-500/30 text-purple-200 text-[10px] sm:text-[11px] font-mono select-none flex-shrink-0"
             >
               <div className="relative flex h-1.5 w-1.5">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
