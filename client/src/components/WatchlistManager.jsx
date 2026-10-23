@@ -25,7 +25,6 @@ import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { ShareWatchedModal } from './ShareWatchedModal';
 import { DownloadWatchedModal } from './DownloadWatchedModal';
-import { PinnedOngoingShelf } from './PinnedOngoingShelf';
 
 export const WatchlistManager = ({ initialStatus = 'plan_to_watch', onOpenDetail, onBrowseAiring }) => {
   const { user, openAuthModal, stats, refreshStats, togglePinAnime, watchlistMap } = useAuth();
@@ -279,12 +278,6 @@ export const WatchlistManager = ({ initialStatus = 'plan_to_watch', onOpenDetail
           </p>
         </div>
       </div>
-
-      {/* Pinned Ongoing Anime Showcase Shelf */}
-      <PinnedOngoingShelf 
-        onOpenDetail={onOpenDetail} 
-        onBrowseAiring={onBrowseAiring} 
-      />
 
       {/* Tabs Bar & Search */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-2">
