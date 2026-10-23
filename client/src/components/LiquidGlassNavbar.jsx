@@ -151,16 +151,16 @@ export const LiquidGlassNavbar = ({
             <div className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-cyan-400 blur-[2px] animate-pulse" />
           </div>
 
-          <div className="hidden sm:flex flex-col">
+          <div className="flex flex-col">
             <div className="flex items-center gap-1">
               <span className="font-heading font-extrabold text-sm sm:text-base tracking-tight bg-gradient-to-r from-white via-purple-100 to-cyan-200 bg-clip-text text-transparent">
                 AniCart
               </span>
-              <span className="text-[9px] font-mono px-1.5 py-0.2 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
-                Editorial
+              <span className="hidden xs:inline-block text-[9px] font-mono px-1.5 py-0.2 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
+                Live
               </span>
             </div>
-            <span className="text-[9px] text-slate-400 -mt-1 tracking-wider uppercase font-medium">
+            <span className="hidden sm:inline-block text-[9px] text-slate-400 -mt-1 tracking-wider uppercase font-medium">
               Anime & Intelligence
             </span>
           </div>

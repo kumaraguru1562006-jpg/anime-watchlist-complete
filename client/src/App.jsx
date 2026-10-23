@@ -221,7 +221,7 @@ function AppContent() {
           </div>
         </div>
         <p className="text-xs text-purple-300 font-mono tracking-wider animate-pulse">
-          Restoring AniSphere Session...
+          Restoring AniCart Session...
         </p>
       </div>
     );

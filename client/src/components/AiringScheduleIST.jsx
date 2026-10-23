@@ -24,8 +24,25 @@ import { useAuth } from '../context/AuthContext';
 
 export const AiringScheduleIST = ({ onOpenDetail }) => {
   const { user, openAuthModal, watchlistMap, toggleWatchlistStatus } = useAuth();
-  const [schedules, setSchedules] = useState([]);
-  const [loading, setLoading] = useState(true);
+  
+  // Synchronous cache hydration for instant zero-wait initial paint
+  const [schedules, setSchedules] = useState(() => {
+    try {
+      const cached = localStorage.getItem('anicart_cache_airing_schedules');
+      return cached ? JSON.parse(cached) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const [loading, setLoading] = useState(() => {
+    try {
+      const cached = localStorage.getItem('anicart_cache_airing_schedules');
+      return !cached || JSON.parse(cached).length === 0;
+    } catch {
+      return true;
+    }
+  });
   const [loadingMore, setLoadingMore] = useState(false);
   const [page, setPage] = useState(1);
   const [hasNextPage, setHasNextPage] = useState(false);
@@ -83,7 +100,13 @@ export const AiringScheduleIST = ({ onOpenDetail }) => {
         for (const item of incoming) {
           if (!uniqueMap.has(item.animeId)) uniqueMap.set(item.animeId, item);
         }
-        setSchedules(Array.from(uniqueMap.values()));
+        const list = Array.from(uniqueMap.values());
+        setSchedules(list);
+        if (!search.trim() && pageNum === 1 && list.length > 0) {
+          try {
+            localStorage.setItem('anicart_cache_airing_schedules', JSON.stringify(list));
+          } catch (e) {}
+        }
       } else {
         setSchedules((prev) => {
           const uniqueMap = new Map();

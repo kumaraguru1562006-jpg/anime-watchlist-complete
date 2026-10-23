@@ -142,10 +142,19 @@ if (fs.existsSync(clientDistPath)) {
 // Start Server conditionally (only call listen in standalone mode, not in Vercel serverless)
 if (!process.env.VERCEL) {
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`🚀 [AniSphere Fullstack] Running on port ${PORT} (0.0.0.0)`);
+    console.log(`🚀 [AniCart Fullstack] Running on port ${PORT} (0.0.0.0)`);
     console.log(`🕒 [IST Clock] Indian Standard Time initialized: ${new Date().toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata' })}`);
     syncService.startDailyScheduler();
     connectDB().catch((err) => console.error('DB connect error:', err));
+
+    // Self Keep-Alive to prevent idle sleeping on Render free tier
+    const RENDER_APP_URL = process.env.RENDER_EXTERNAL_URL || 'https://anime-watchlist-complete.onrender.com';
+    setInterval(async () => {
+      try {
+        await fetch(`${RENDER_APP_URL}/api/health`);
+        console.log('⚡ [Keep-Alive] Server health self-ping successful');
+      } catch (e) {}
+    }, 12 * 60 * 1000); // Keep alive every 12 minutes
   });
 } else {
   connectDB().catch((err) => console.error('DB connect error in serverless:', err));

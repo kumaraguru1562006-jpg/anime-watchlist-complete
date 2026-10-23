@@ -11,68 +11,109 @@ import {
 const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
-  const [token, setToken] = useState(localStorage.getItem('anisphere_token') || null);
-  const [loading, setLoading] = useState(true);
-  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
-  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
-  const [watchlistMap, setWatchlistMap] = useState({}); // { [animeId]: item }
-  const [stats, setStats] = useState({
-    total: 0,
-    planToWatchCount: 0,
-    completedCount: 0,
-    watchingCount: 0,
-    totalEpisodesWatched: 0,
-    averageScore: '0.0',
+  // Synchronous 0ms local hydration: no waiting for sleeping server on boot
+  const [user, setUser] = useState(() => {
+    try {
+      const savedUser = localStorage.getItem('anisphere_user');
+      return savedUser ? JSON.parse(savedUser) : null;
+    } catch (e) {
+      return null;
+    }
   });
 
-  // Automatically load the website after first time login - no need of login each time!
+  const [token, setToken] = useState(() => localStorage.getItem('anisphere_token') || null);
+  
+  // Instant load: never block the user on a loading spinner if cached credentials exist
+  const [loading, setLoading] = useState(false);
+  
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+
+  // Instantly hydrate watchlist and stats from cache
+  const [watchlistMap, setWatchlistMap] = useState(() => {
+    try {
+      const cached = localStorage.getItem('anisphere_cached_watchlist_map');
+      return cached ? JSON.parse(cached) : {};
+    } catch {
+      return {};
+    }
+  });
+
+  const [stats, setStats] = useState(() => {
+    try {
+      const cached = localStorage.getItem('anisphere_cached_stats');
+      return cached ? JSON.parse(cached) : {
+        total: 0,
+        planToWatchCount: 0,
+        completedCount: 0,
+        watchingCount: 0,
+        totalEpisodesWatched: 0,
+        averageScore: '0.0',
+      };
+    } catch {
+      return {
+        total: 0,
+        planToWatchCount: 0,
+        completedCount: 0,
+        watchingCount: 0,
+        totalEpisodesWatched: 0,
+        averageScore: '0.0',
+      };
+    }
+  });
+
+  // Non-blocking background verification & Stale-While-Revalidate refresh
   useEffect(() => {
     let unsubscribe = () => {};
 
-    const initAuth = async () => {
-      // 1. Check if token or user exists in localStorage
+    const initAuth = () => {
       const savedToken = localStorage.getItem('anisphere_token');
       if (savedToken) {
-        try {
-          const res = await api.getMe();
-          setUser(res.user);
-          await refreshWatchlistAndStats();
-        } catch (err) {
-          console.warn('Backend token re-auth failed, trying Firebase state:', err.message);
-        }
-      } else {
-        const savedUser = localStorage.getItem('anisphere_user');
-        if (savedUser) {
-          try {
-            setUser(JSON.parse(savedUser));
-          } catch (e) {}
-        }
+        // Background re-verification with MongoDB backend (does not freeze UI)
+        api.getMe()
+          .then((res) => {
+            if (res && res.user) {
+              setUser(res.user);
+              localStorage.setItem('anisphere_user', JSON.stringify(res.user));
+              refreshWatchlistAndStats();
+            }
+          })
+          .catch((err) => {
+            console.warn('Background token verification:', err.message);
+            // Only invalidate if explicitly rejected with 401 Unauthorized
+            if (err.message && err.message.includes('401')) {
+              localStorage.removeItem('anisphere_token');
+              localStorage.removeItem('anisphere_user');
+              setUser(null);
+            }
+          });
       }
 
-      // 2. Attach Google Firebase persistent auth listener
-      unsubscribe = onFirebaseAuthStateChanged(async (firebaseUser) => {
+      // Refresh watchlist and stats in background
+      refreshWatchlistAndStats();
+
+      // Firebase auth listener
+      unsubscribe = onFirebaseAuthStateChanged((firebaseUser) => {
         if (firebaseUser) {
-          try {
-            const cleanEmail = firebaseUser.email;
-            const res = await api.loginFirebase({
-              email: cleanEmail,
-              name: firebaseUser.displayName || cleanEmail.split('@')[0],
-              avatar: firebaseUser.photoURL,
-              firebaseUid: firebaseUser.uid,
+          const cleanEmail = firebaseUser.email;
+          api.loginFirebase({
+            email: cleanEmail,
+            name: firebaseUser.displayName || cleanEmail.split('@')[0],
+            avatar: firebaseUser.photoURL,
+            firebaseUid: firebaseUser.uid,
+          })
+            .then((res) => {
+              localStorage.setItem('anisphere_token', res.token);
+              localStorage.setItem('anisphere_user', JSON.stringify(res.user));
+              setToken(res.token);
+              setUser(res.user);
+              refreshWatchlistAndStats();
+            })
+            .catch((err) => {
+              console.error('Error syncing Firebase user to backend:', err);
             });
-            localStorage.setItem('anisphere_token', res.token);
-            localStorage.setItem('anisphere_user', JSON.stringify(res.user));
-            setToken(res.token);
-            setUser(res.user);
-            await refreshWatchlistAndStats();
-          } catch (err) {
-            console.error('Error syncing Firebase user to backend:', err);
-          }
         }
       });
-
-      setLoading(false);
     };
 
     initAuth();
@@ -82,18 +123,29 @@ export const AuthProvider = ({ children }) => {
   const refreshWatchlistAndStats = async () => {
     try {
       const [s, wl] = await Promise.all([
-        api.getWatchlistStats(),
-        api.getWatchlist('all'),
+        api.getWatchlistStats().catch(() => null),
+        api.getWatchlist('all').catch(() => null),
       ]);
-      setStats(s);
       
-      const map = {};
-      (wl.items || []).forEach((item) => {
-        map[item.animeId] = item;
-      });
-      setWatchlistMap(map);
+      if (s) {
+        setStats(s);
+        try {
+          localStorage.setItem('anisphere_cached_stats', JSON.stringify(s));
+        } catch (e) {}
+      }
+
+      if (wl?.items) {
+        const map = {};
+        wl.items.forEach((item) => {
+          map[item.animeId] = item;
+        });
+        setWatchlistMap(map);
+        try {
+          localStorage.setItem('anisphere_cached_watchlist_map', JSON.stringify(map));
+        } catch (e) {}
+      }
     } catch (e) {
-      // silent
+      // silent background refresh failure
     }
   };
 
@@ -229,10 +281,16 @@ export const AuthProvider = ({ children }) => {
       });
 
       const updatedItem = res.item;
-      setWatchlistMap((prev) => ({
-        ...prev,
-        [updatedItem.animeId]: updatedItem,
-      }));
+      setWatchlistMap((prev) => {
+        const next = {
+          ...prev,
+          [updatedItem.animeId]: updatedItem,
+        };
+        try {
+          localStorage.setItem('anisphere_cached_watchlist_map', JSON.stringify(next));
+        } catch (e) {}
+        return next;
+      });
 
       refreshWatchlistAndStats();
       return true;
@@ -248,6 +306,8 @@ export const AuthProvider = ({ children }) => {
     } catch (e) {}
     localStorage.removeItem('anisphere_token');
     localStorage.removeItem('anisphere_user');
+    localStorage.removeItem('anisphere_cached_watchlist_map');
+    localStorage.removeItem('anisphere_cached_stats');
     setToken(null);
     setUser(null);
     setWatchlistMap({});

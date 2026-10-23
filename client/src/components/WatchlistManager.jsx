@@ -28,8 +28,24 @@ import { DownloadWatchedModal } from './DownloadWatchedModal';
 export const WatchlistManager = ({ initialStatus = 'plan_to_watch', onOpenDetail, onBrowseAiring }) => {
   const { user, openAuthModal, stats, refreshStats } = useAuth();
   const [activeSubTab, setActiveSubTab] = useState(initialStatus); // 'plan_to_watch' | 'completed' | 'watching' | 'all'
-  const [items, setItems] = useState([]);
-  const [loading, setLoading] = useState(true);
+  
+  // Instant cache hydration for watchlist
+  const [items, setItems] = useState(() => {
+    try {
+      const cached = localStorage.getItem(`anicart_cache_watchlist_${initialStatus}`);
+      return cached ? JSON.parse(cached) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [loading, setLoading] = useState(() => {
+    try {
+      const cached = localStorage.getItem(`anicart_cache_watchlist_${initialStatus}`);
+      return !cached || JSON.parse(cached).length === 0;
+    } catch {
+      return true;
+    }
+  });
   const [searchTerm, setSearchTerm] = useState('');
   const [editingNotesItem, setEditingNotesItem] = useState(null);
   const [tempNotes, setTempNotes] = useState('');
@@ -69,6 +85,13 @@ export const WatchlistManager = ({ initialStatus = 'plan_to_watch', onOpenDetail
 
   useEffect(() => {
     if (user) {
+      try {
+        const cached = localStorage.getItem(`anicart_cache_watchlist_${activeSubTab}`);
+        if (cached) {
+          setItems(JSON.parse(cached));
+          setLoading(false);
+        }
+      } catch (e) {}
       loadWatchlist();
     } else {
       setLoading(false);
@@ -76,10 +99,14 @@ export const WatchlistManager = ({ initialStatus = 'plan_to_watch', onOpenDetail
   }, [user, activeSubTab]);
 
   const loadWatchlist = async () => {
-    setLoading(true);
+    if (items.length === 0) setLoading(true);
     try {
       const data = await api.getWatchlist(activeSubTab);
-      setItems(data.items || []);
+      const incoming = data.items || [];
+      setItems(incoming);
+      try {
+        localStorage.setItem(`anicart_cache_watchlist_${activeSubTab}`, JSON.stringify(incoming));
+      } catch (e) {}
       await refreshStats();
     } catch (err) {
       console.error('Error loading watchlist:', err);

@@ -41,16 +41,16 @@ const authFetch = async (endpoint, options = {}) => {
   const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
   const requestUrl = `${BASE_URL}${cleanEndpoint}`;
 
-  // Retry logic for Render free-tier cold starts (server takes ~30-60s to wake up)
-  const MAX_RETRIES = 3;
-  const RETRY_DELAY_MS = 5000; // 5 seconds between retries
+  // Optimized retry logic for Render free-tier cold starts
+  const MAX_RETRIES = 2;
+  const RETRY_DELAY_MS = 2500; // 2.5 seconds between retries
   let response;
   let lastError;
 
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), attempt === 1 ? 15000 : 30000);
+      const timeoutId = setTimeout(() => controller.abort(), attempt === 1 ? 12000 : 25000);
 
       response = await fetch(requestUrl, {
         ...options,
@@ -61,9 +61,8 @@ const authFetch = async (endpoint, options = {}) => {
       break; // Success — exit retry loop
     } catch (netErr) {
       lastError = netErr;
-      console.warn(`[AniCart API] Attempt ${attempt}/${MAX_RETRIES} failed for ${requestUrl}: ${netErr.message}`);
+      console.warn(`[AniCart API] Attempt ${attempt}/${MAX_RETRIES} for ${requestUrl}: ${netErr.message}`);
       if (attempt < MAX_RETRIES) {
-        // Wait before retrying (server may be waking up from cold start)
         await new Promise(r => setTimeout(r, RETRY_DELAY_MS));
       }
     }
