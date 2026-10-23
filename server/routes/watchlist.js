@@ -1,4 +1,5 @@
 import express from 'express';
+import axios from 'axios';
 import { WatchlistItem } from '../models/WatchlistItem.js';
 import { User } from '../models/User.js';
 import { isMongoConnected, getLocalDb, saveLocalDb } from '../config/db.js';
@@ -45,6 +46,133 @@ router.get('/', requireAuth, async (req, res) => {
   } catch (err) {
     console.error('Error fetching watchlist:', err);
     return res.status(500).json({ error: 'Failed to fetch watchlist' });
+  }
+});
+
+// GET /api/watchlist/pinned-airing-alerts
+// Checks live airing status of user's pinned anime and returns newly aired & upcoming episode alerts
+router.get('/pinned-airing-alerts', requireAuth, async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    let pinnedItems = [];
+    if (isMongoConnected) {
+      pinnedItems = await WatchlistItem.find({ userId, isPinned: true });
+    } else {
+      const db = getLocalDb();
+      pinnedItems = (db.watchlist || []).filter((i) => i.userId === userId && i.isPinned);
+    }
+
+    if (pinnedItems.length === 0) {
+      return res.json({ alerts: [], count: 0 });
+    }
+
+    const animeIds = pinnedItems.map((item) => Number(item.animeId)).filter(Boolean);
+
+    // Batch query AniList for latest airing episode info
+    let airingMedia = [];
+    try {
+      const aniQuery = `
+        query ($ids: [Int]) {
+          Page(page: 1, perPage: 50) {
+            media(id_in: $ids, type: ANIME) {
+              id
+              title {
+                romaji
+                english
+              }
+              coverImage {
+                extraLarge
+                large
+              }
+              episodes
+              status
+              nextAiringEpisode {
+                id
+                episode
+                airingAt
+                timeUntilAiring
+              }
+            }
+          }
+        }
+      `;
+      const aniRes = await axios.post(
+        'https://graphql.anilist.co',
+        { query: aniQuery, variables: { ids: animeIds } },
+        { headers: { 'Content-Type': 'application/json' }, timeout: 8000 }
+      );
+      airingMedia = aniRes.data?.data?.Page?.media || [];
+    } catch (aniErr) {
+      console.warn('AniList airing lookup warning for alerts:', aniErr.message);
+    }
+
+    const mediaMap = new Map();
+    airingMedia.forEach((m) => mediaMap.set(m.id, m));
+
+    const nowSec = Math.floor(Date.now() / 1000);
+    const alerts = [];
+
+    for (const item of pinnedItems) {
+      const media = mediaMap.get(Number(item.animeId));
+      if (!media) continue;
+
+      const nextEp = media.nextAiringEpisode;
+      
+      if (nextEp) {
+        const airingAt = nextEp.airingAt;
+        const diffSec = airingAt - nowSec;
+        const hasAired = diffSec <= 0;
+        
+        // Format IST
+        const date = new Date(airingAt * 1000);
+        const timeIST = date.toLocaleTimeString('en-IN', {
+          timeZone: 'Asia/Kolkata',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: true,
+        });
+        const dateIST = date.toLocaleDateString('en-IN', {
+          timeZone: 'Asia/Kolkata',
+          weekday: 'short',
+          day: 'numeric',
+          month: 'short',
+        });
+
+        // Include if aired within past 72 hours, or airing within the next 24 hours
+        const seventyTwoHoursSec = 72 * 3600;
+        const twentyFourHoursSec = 24 * 3600;
+
+        if ((hasAired && Math.abs(diffSec) <= seventyTwoHoursSec) || (!hasAired && diffSec <= twentyFourHoursSec)) {
+          alerts.push({
+            id: `alert_${item.animeId}_ep_${nextEp.episode}`,
+            animeId: item.animeId,
+            title: item.title || media.title.english || media.title.romaji,
+            englishTitle: item.englishTitle || media.title.english,
+            coverImage: item.coverImage || media.coverImage?.large,
+            episode: nextEp.episode,
+            totalEpisodes: item.totalEpisodes || media.episodes,
+            episodesWatched: item.episodesWatched || 0,
+            airingAt,
+            hasAired,
+            timeIST,
+            dateIST,
+            diffSec,
+            message: hasAired
+              ? `Episode ${nextEp.episode} of "${item.title}" has aired in Indian Standard Time (IST)!`
+              : `Episode ${nextEp.episode} of "${item.title}" airs ${dateIST} at ${timeIST} IST.`,
+          });
+        }
+      }
+    }
+
+    // Sort newest airing first
+    alerts.sort((a, b) => b.airingAt - a.airingAt);
+
+    return res.json({ alerts, count: alerts.length });
+  } catch (err) {
+    console.error('Error fetching pinned airing alerts:', err);
+    return res.status(500).json({ error: 'Failed to fetch airing alerts' });
   }
 });
 

@@ -79,6 +79,7 @@ function MainLayout({ onGoToLogin }) {
         setActiveTab={setActiveTab}
         onOpenSearch={() => setIsSearchOpen(true)}
         onOpenStats={() => setIsStatsOpen(true)}
+        onOpenDetail={(id) => setSelectedAnimeId(id)}
         onGoToLogin={onGoToLogin}
       />
 
