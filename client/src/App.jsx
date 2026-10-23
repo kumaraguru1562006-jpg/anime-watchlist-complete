@@ -8,6 +8,7 @@ import { ThisYearAiringSection } from './components/ThisYearAiringSection';
 import { AiredAnimeSection } from './components/AiredAnimeSection';
 import { WatchlistManager } from './components/WatchlistManager';
 import { PinnedOngoingShelf } from './components/PinnedOngoingShelf';
+import { PinnedAnimePage } from './components/PinnedAnimePage';
 import { NewsSection } from './components/NewsSection';
 import { GoogleAuthModal } from './components/GoogleAuthModal';
 import { UserProfileModal } from './components/UserProfileModal';
@@ -84,11 +85,13 @@ function MainLayout({ onGoToLogin }) {
 
       {/* Main Content Area */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 pt-24 sm:pt-28 pb-16 z-10">
-        {/* DEDICATED SEPARATE SHOWCASE: PINNED ONGOING ANIME */}
-        <PinnedOngoingShelf
-          onOpenDetail={(id) => setSelectedAnimeId(id)}
-          onBrowseAiring={() => setActiveTab('airing')}
-        />
+        {/* DEDICATED SEPARATE SHOWCASE: PINNED ONGOING ANIME (Shown on other tabs when user has pinned shows) */}
+        {activeTab !== 'pinned' && (
+          <PinnedOngoingShelf
+            onOpenDetail={(id) => setSelectedAnimeId(id)}
+            onBrowseAiring={() => setActiveTab('airing')}
+          />
+        )}
 
         {/* CRUNCHYROLL TOP ANIME OF THE MONTH - FEATURED RIGHT ON TOP */}
         {(activeTab === 'airing' || activeTab === 'top_monthly') && (
@@ -125,7 +128,15 @@ function MainLayout({ onGoToLogin }) {
           />
         )}
 
-        {/* VIEW 4: Anime To Watch List */}
+        {/* VIEW 5: DEDICATED FULL-PAGE VIEW: Pinned Ongoing Anime */}
+        {activeTab === 'pinned' && (
+          <PinnedAnimePage
+            onOpenDetail={(id) => setSelectedAnimeId(id)}
+            onBrowseAiring={() => setActiveTab('airing')}
+          />
+        )}
+
+        {/* VIEW 6: Anime To Watch List */}
         {activeTab === 'towatch' && (
           <WatchlistManager
             key="towatch"

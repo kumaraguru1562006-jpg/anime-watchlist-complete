@@ -19,7 +19,8 @@ import {
   Calendar,
   RefreshCw,
   Check,
-  ShieldCheck
+  ShieldCheck,
+  Pin
 } from 'lucide-react';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
@@ -31,7 +32,7 @@ export const LiquidGlassNavbar = ({
   onOpenStats, 
   onGoToLogin 
 }) => {
-  const { user, logout, openAuthModal, openProfileModal, stats } = useAuth();
+  const { user, logout, openAuthModal, openProfileModal, stats, watchlistMap } = useAuth();
   const [istTime, setIstTime] = useState('');
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -82,6 +83,8 @@ export const LiquidGlassNavbar = ({
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
+  const pinnedCount = stats?.pinnedCount || Object.values(watchlistMap || {}).filter(i => i.isPinned).length || 0;
+
   const navItems = [
     {
       id: 'airing',
@@ -110,6 +113,14 @@ export const LiquidGlassNavbar = ({
       label: 'Manga',
       fullLabel: 'Manga & Catalog',
       icon: Film,
+    },
+    {
+      id: 'pinned',
+      label: 'Pinned',
+      fullLabel: 'Pinned Ongoing Anime',
+      icon: Pin,
+      badge: pinnedCount > 0 ? pinnedCount : null,
+      badgeColor: 'bg-amber-500/20 text-amber-300 border-amber-500/30',
     },
     {
       id: 'towatch',
