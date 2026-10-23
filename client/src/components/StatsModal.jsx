@@ -43,7 +43,7 @@ export const StatsModal = ({ isOpen, onClose }) => {
   ];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
       <div 
         className="relative w-full max-w-md liquid-glass-nav bg-[#0e1329]/95 rounded-3xl p-6 shadow-2xl border border-white/20"
         onClick={(e) => e.stopPropagation()}

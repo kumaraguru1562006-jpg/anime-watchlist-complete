@@ -36,8 +36,8 @@ import confetti from 'canvas-confetti';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 
-export const AniChatBot = ({ onOpenDetail }) => {
-  const { user, openAuthModal, watchlistMap, toggleWatchlistStatus } = useAuth();
+export const AniChatBot = ({ onOpenDetail, hideLauncher = false }) => {
+  const { user, openAuthModal, isProfileModalOpen, isAuthModalOpen, watchlistMap, toggleWatchlistStatus } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
@@ -627,10 +627,17 @@ I am your **all-rounder anime intelligence**, rigorously trained across thousand
     });
   };
 
+  const isAnyModalActive = hideLauncher || isProfileModalOpen || isAuthModalOpen;
+
+  // Hide the floating chatbot launcher if any modal is currently open to avoid overlaying on modal buttons (e.g. Done button)
+  if (isAnyModalActive && !isOpen) {
+    return null;
+  }
+
   return (
     <>
       {/* Floating Launcher Trigger */}
-      <div className="fixed bottom-6 right-6 z-50 select-none">
+      <div className="fixed bottom-6 right-6 z-40 select-none">
         <button
           onClick={handleOpenChat}
           className={`relative p-3.5 rounded-2xl flex items-center gap-2.5 transition-all duration-300 shadow-2xl backdrop-blur-xl ${
@@ -657,7 +664,7 @@ I am your **all-rounder anime intelligence**, rigorously trained across thousand
 
       {/* Main Chat Modal Window */}
       {isOpen && (
-        <div className="fixed bottom-20 right-4 sm:right-6 z-50 w-[95vw] sm:w-[480px] md:w-[500px] h-[650px] max-h-[86vh] rounded-3xl bg-[#090d1f]/95 border border-purple-500/30 backdrop-blur-2xl shadow-2xl flex flex-col overflow-hidden animate-scale-in">
+        <div className="fixed bottom-20 right-4 sm:right-6 z-[60] w-[95vw] sm:w-[480px] md:w-[500px] h-[650px] max-h-[86vh] rounded-3xl bg-[#090d1f]/95 border border-purple-500/30 backdrop-blur-2xl shadow-2xl flex flex-col overflow-hidden animate-scale-in">
           {/* Sleek Minimalist Header */}
           <div className="px-4 py-3 bg-[#0d122b]/85 border-b border-white/10 flex items-center justify-between backdrop-blur-xl">
             <div className="flex items-center gap-2.5 min-w-0">

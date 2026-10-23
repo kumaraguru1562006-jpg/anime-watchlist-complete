@@ -93,7 +93,7 @@ export const SharedWatchedViewModal = ({ onOpenDetail }) => {
   const items = sharedData?.items || [];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/85 backdrop-blur-md animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-5 bg-black/85 backdrop-blur-md animate-in fade-in duration-200">
       <div 
         className="relative w-full max-w-4xl liquid-glass-card bg-[#080c1f]/95 rounded-3xl p-6 sm:p-8 shadow-2xl border border-cyan-500/30 max-h-[92vh] flex flex-col overflow-hidden space-y-6"
         onClick={(e) => e.stopPropagation()}

@@ -168,6 +168,7 @@ function MainLayout({ onGoToLogin }) {
       {/* Interactive AI Anime Recommender Chat Bot */}
       <AniChatBot
         onOpenDetail={(id) => setSelectedAnimeId(id)}
+        hideLauncher={Boolean(selectedAnimeId || isStatsOpen || isSearchOpen)}
       />
 
       {/* Public Shared Watched List Showcase Modal */}

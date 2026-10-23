@@ -190,7 +190,7 @@ export const DownloadWatchedModal = ({ isOpen, onClose, user, watchedItems = [],
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-[75] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
       <div 
         className="relative w-full max-w-md liquid-glass-card bg-[#090d21]/95 rounded-3xl p-6 sm:p-7 shadow-2xl border border-purple-500/30 space-y-6"
         onClick={(e) => e.stopPropagation()}

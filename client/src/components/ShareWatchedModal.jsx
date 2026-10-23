@@ -96,7 +96,7 @@ export const ShareWatchedModal = ({ isOpen, onClose, user, watchedItems = [], st
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-[75] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
       <div 
         className="relative w-full max-w-lg liquid-glass-card bg-[#090d21]/95 rounded-3xl p-6 sm:p-7 shadow-2xl border border-cyan-500/30 max-h-[92vh] overflow-y-auto space-y-6"
         onClick={(e) => e.stopPropagation()}

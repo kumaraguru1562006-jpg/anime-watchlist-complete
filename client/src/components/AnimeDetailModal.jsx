@@ -75,7 +75,7 @@ export const AnimeDetailModal = ({ animeId, onClose, onActionSuccess }) => {
   if (!animeId) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200 overflow-y-auto">
+    <div className="fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200 overflow-y-auto">
       <div 
         className="relative w-full max-w-3xl my-8 liquid-glass-nav bg-[#0e1329]/95 rounded-3xl overflow-hidden shadow-2xl border border-white/20"
         onClick={(e) => e.stopPropagation()}

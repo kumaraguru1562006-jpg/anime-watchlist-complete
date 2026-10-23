@@ -133,7 +133,7 @@ export const UserProfileModal = () => {
 
   return (
     <div 
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200 overflow-y-auto"
+      className="fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200 overflow-y-auto"
       onClick={closeProfileModal}
     >
       <div 
@@ -464,7 +464,7 @@ export const UserProfileModal = () => {
         </div>
 
         {/* MODAL FOOTER */}
-        <div className="pt-3 border-t border-white/10 flex items-center justify-between gap-2 flex-shrink-0 text-xs text-slate-400">
+        <div className="pt-3.5 pb-1 border-t border-white/10 flex items-center justify-between gap-2 flex-shrink-0 text-xs text-slate-400">
           <div className="flex items-center gap-1.5 text-[11px]">
             <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
             <span>Auto-Persistence Enabled • No repeated logins required</span>
@@ -472,9 +472,10 @@ export const UserProfileModal = () => {
 
           <button
             onClick={closeProfileModal}
-            className="px-4 py-1.5 rounded-xl bg-white/10 hover:bg-white/15 text-white text-xs font-semibold transition-colors"
+            className="px-5 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 active:scale-95 text-white text-xs font-bold transition-all shadow-md shadow-purple-600/30 flex items-center gap-1.5"
           >
-            Done
+            <Check className="w-3.5 h-3.5" />
+            <span>Done</span>
           </button>
         </div>
       </div>
