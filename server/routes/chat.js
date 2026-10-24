@@ -4,6 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { getTavilyGrounding, searchTavily, callTavilyMcpTool } from '../services/tavilyService.js';
+import { getAniListGrounding } from '../services/anilistKnowledgeService.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -283,6 +284,10 @@ router.get('/status', (req, res) => {
           : null,
         label: 'Tavily AI Search & MCP Grounding 🌐⚡',
       },
+      anilist: {
+        available: true,
+        label: 'AniList GraphQL Knowledge Engine 🍙 (Live Database)',
+      },
       builtin: {
         available: true,
         model: 'AniChat 🍙 All-Rounder 2026 Engine',
@@ -291,6 +296,7 @@ router.get('/status', (req, res) => {
     },
     defaultProvider: hasEnvGemini ? 'gemini' : hasEnvOpenAI ? 'openai' : 'builtin',
     grounding: {
+      anilist: true,
       tavily: Boolean(process.env.TAVILY_API_KEY),
       tavilyMcp: Boolean(process.env.TAVILY_MCP_URL),
       googleSearch: true,
@@ -494,6 +500,19 @@ Broadcasting episodes for today are currently synchronizing or shifting to tonig
   let systemPrompt = getSystemPromptWithContext(`Today in Indian Standard Time is ${currentDayIST}, ${currentDateIST} (Current Year: 2026).`);
 
   // ----------------------------------------------------
+  // REAL-TIME KNOWLEDGE GROUNDING VIA ANILIST GRAPHQL API
+  // ----------------------------------------------------
+  let anilistGrounding = null;
+  try {
+    anilistGrounding = await getAniListGrounding(message);
+    if (anilistGrounding?.contextPrompt) {
+      systemPrompt += anilistGrounding.contextPrompt;
+    }
+  } catch (aniGroundErr) {
+    console.warn('AniList grounding fetch warning:', aniGroundErr.message);
+  }
+
+  // ----------------------------------------------------
   // REAL-TIME WEB GROUNDING VIA TAVILY AI SEARCH & MCP
   // ----------------------------------------------------
   let tavilyGrounding = null;
@@ -666,9 +685,21 @@ Broadcasting episodes for today are currently synchronizing or shifting to tonig
           } catch {}
         }
 
-        const recCards = await searchAniListForTitles(extractedTitles);
+        let recCards = await searchAniListForTitles(extractedTitles);
+        if (recCards.length === 0 && anilistGrounding?.cards?.length > 0) {
+          recCards = anilistGrounding.cards;
+        }
 
-        const modelLabel = groundingInfo?.provider?.startsWith('tavily')
+        const combinedSources = [
+          ...(anilistGrounding?.groundingInfo?.sources || []),
+          ...(groundingInfo?.sources || []),
+        ];
+
+        const modelLabel = anilistGrounding && groundingInfo
+          ? `${candidate.label} (AniList 🍙 + Web Grounded 🌐)`
+          : anilistGrounding
+          ? `${candidate.label} (AniList Grounded 🍙)`
+          : groundingInfo?.provider?.startsWith('tavily')
           ? `${candidate.label} (Tavily Grounded 🌐⚡)`
           : groundingInfo
           ? `${candidate.label} (Google Search Grounded 🌐)`
@@ -679,7 +710,9 @@ Broadcasting episodes for today are currently synchronizing or shifting to tonig
           recommendations: recCards,
           modelUsed: modelLabel,
           provider: 'gemini',
-          grounding: groundingInfo,
+          grounding: combinedSources.length > 0
+            ? { sources: combinedSources.slice(0, 8), provider: 'anilist_plus_web' }
+            : null,
         });
       }
     }
@@ -728,15 +761,32 @@ Broadcasting episodes for today are currently synchronizing or shifting to tonig
           } catch {}
         }
 
-        const recCards = await searchAniListForTitles(extractedTitles);
+        let recCards = await searchAniListForTitles(extractedTitles);
+        if (recCards.length === 0 && anilistGrounding?.cards?.length > 0) {
+          recCards = anilistGrounding.cards;
+        }
+
+        const combinedSources = [
+          ...(anilistGrounding?.groundingInfo?.sources || []),
+          ...(tavilyGrounding?.groundingInfo?.sources || []),
+        ];
+
+        const modelLabel = anilistGrounding && tavilyGrounding
+          ? 'OpenAI GPT-4o Mini ⚡ (AniList 🍙 + Web Grounded 🌐)'
+          : anilistGrounding
+          ? 'OpenAI GPT-4o Mini ⚡ (AniList Grounded 🍙)'
+          : tavilyGrounding
+          ? 'OpenAI GPT-4o Mini ⚡ (Tavily Grounded 🌐)'
+          : 'OpenAI GPT-4o Mini ⚡';
+
         return res.json({
           reply: cleanReply,
           recommendations: recCards,
-          modelUsed: tavilyGrounding
-            ? 'OpenAI GPT-4o Mini ⚡ (Tavily Grounded 🌐)'
-            : 'OpenAI GPT-4o Mini ⚡',
+          modelUsed: modelLabel,
           provider: 'openai',
-          grounding: tavilyGrounding?.groundingInfo || null,
+          grounding: combinedSources.length > 0
+            ? { sources: combinedSources.slice(0, 8), provider: 'anilist_plus_web' }
+            : null,
         });
       }
     } catch (oaiErr) {
@@ -765,14 +815,14 @@ Broadcasting episodes for today are currently synchronizing or shifting to tonig
   // ----------------------------------------------------
   // ATTEMPT 3: All-Rounder AniChat 🍙 Built-In Intelligence Brain
   // ----------------------------------------------------
-  return handleBuiltinAllRounder(message, userText, res);
+  return handleBuiltinAllRounder(message, userText, res, anilistGrounding);
 });
 
 // ====================================================
 // ALL-ROUNDER BUILT-IN KNOWLEDGE ENGINE
 // Handles: Episode Details, Character Fates, VS Battles, Watch Orders, Studio Lore & Recommendations
 // ====================================================
-async function handleBuiltinAllRounder(rawMessage, userText, res) {
+async function handleBuiltinAllRounder(rawMessage, userText, res, anilistGrounding = null) {
 
   // ----------------------------------------------------
   // BLEACH: THOUSAND-YEAR BLOOD WAR - THE CALAMITY & TYBW
@@ -1543,6 +1593,29 @@ Here are 3 critically acclaimed masterpieces tailored to your taste, featuring e
     } catch {
       // Fallback below
     }
+  }
+
+  // If AniList database matched records for this query, generate instant grounded response!
+  if (anilistGrounding && anilistGrounding.cards?.length > 0) {
+    const primaryCard = anilistGrounding.cards[0];
+    return res.json({
+      reply: `### 🍙 [ANILIST DATABASE RECORD] ${primaryCard.title}
+${primaryCard.englishTitle && primaryCard.englishTitle !== primaryCard.title ? `*(${primaryCard.englishTitle})*\n` : ''}
+* **Format:** ${primaryCard.format} (${primaryCard.episodes} Episodes)
+* **Lead Studio:** **${primaryCard.studio}**
+* **Score:** ⭐ **${primaryCard.imdbScore}/10** on AniList
+* **Genres:** ${primaryCard.genres.join(', ') || 'Anime'}
+* **Release Year:** ${primaryCard.year || 'Catalog'}
+
+**Official Synopsis:**
+${primaryCard.description}
+
+*Grounded live via official AniList GraphQL Database telemetry.*`,
+      recommendations: anilistGrounding.cards,
+      modelUsed: 'AniChat 🍙 AniList Knowledge Engine 🧠',
+      provider: 'builtin',
+      grounding: anilistGrounding.groundingInfo,
+    });
   }
 
   // GENERAL ALL-ROUNDER CONVERSATIONAL ASSISTANT
