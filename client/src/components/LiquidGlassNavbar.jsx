@@ -20,12 +20,10 @@ import {
   RefreshCw,
   Check,
   ShieldCheck,
-  Pin,
-  Bell
+  Pin
 } from 'lucide-react';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
-import { notificationService } from '../services/notificationService';
 
 export const LiquidGlassNavbar = ({ 
   activeTab, 
@@ -33,41 +31,15 @@ export const LiquidGlassNavbar = ({
   onOpenSearch, 
   onOpenStats, 
   onOpenDetail,
-  onOpenNotifications,
   onGoToLogin 
 }) => {
   const { user, logout, openAuthModal, openProfileModal, stats, watchlistMap } = useAuth();
   const [istTime, setIstTime] = useState('');
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [unreadCount, setUnreadCount] = useState(() => notificationService.getUnreadCount());
   const [isScrolled, setIsScrolled] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncFeedback, setSyncFeedback] = useState('');
-
-  // Live episode airing alerts checker for pinned anime
-  useEffect(() => {
-    let timer;
-    const checkAlerts = async () => {
-      if (!user) return;
-      try {
-        const data = await api.getPinnedAiringAlerts();
-        if (data?.alerts) {
-          await notificationService.processAiringAlerts(data.alerts);
-          setUnreadCount(notificationService.getUnreadCount());
-        }
-      } catch (e) {}
-    };
-
-    if (user) {
-      checkAlerts();
-      timer = setInterval(checkAlerts, 60000);
-    }
-
-    return () => {
-      if (timer) clearInterval(timer);
-    };
-  }, [user, watchlistMap]);
 
   const handleSync = async () => {
     if (isSyncing) return;
@@ -278,25 +250,6 @@ export const LiquidGlassNavbar = ({
               <kbd className="hidden lg:inline text-[9px] font-mono px-1 py-0.2 rounded bg-black/60 text-slate-400 border border-white/5">
                 /
               </kbd>
-            </button>
-
-            {/* Notification Bell Button */}
-            <button
-              onClick={() => {
-                if (onOpenNotifications) {
-                  onOpenNotifications();
-                }
-                setUnreadCount(notificationService.getUnreadCount());
-              }}
-              title="Episode Airing Alerts (IST) & Push Notifications"
-              className="relative flex items-center justify-center p-1.5 sm:px-2 py-1 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 hover:text-white text-[11px] transition-all group cursor-pointer"
-            >
-              <Bell className="w-3.5 h-3.5 text-purple-400 group-hover:text-amber-300 transition-colors" />
-              {unreadCount > 0 && (
-                <span className="absolute -top-1 -right-1 min-w-[15px] h-[15px] px-1 rounded-full bg-rose-500 text-white font-mono text-[9px] font-bold flex items-center justify-center shadow-md animate-pulse">
-                  {unreadCount}
-                </span>
-              )}
             </button>
           </div>
 

@@ -16,13 +16,11 @@ import {
   Calendar,
   Clock,
   Flame,
-  Check,
-  Bell
+  Check
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
-import { notificationService } from '../services/notificationService';
 
 export const PinnedAnimePage = ({ onOpenDetail, onBrowseAiring }) => {
   const { user, openAuthModal, watchlistMap, togglePinAnime, updateEpisodeProgress, refreshStats } = useAuth();
@@ -31,7 +29,6 @@ export const PinnedAnimePage = ({ onOpenDetail, onBrowseAiring }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [editingNotesItem, setEditingNotesItem] = useState(null);
   const [tempNotes, setTempNotes] = useState('');
-  const [notifPermission, setNotifPermission] = useState(notificationService.getPermission());
 
   // Hydrate pinned items reactively from watchlistMap
   useEffect(() => {
@@ -198,18 +195,6 @@ export const PinnedAnimePage = ({ onOpenDetail, onBrowseAiring }) => {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <button
-            onClick={async () => {
-              const res = await notificationService.triggerTestPushNotification();
-              setNotifPermission(res.permission);
-            }}
-            className="px-3.5 py-2.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300 hover:text-white text-xs font-semibold flex items-center justify-center gap-1.5 transition-all shadow-sm"
-            title="Enable or test native browser push alerts for when pinned anime air"
-          >
-            <Bell className="w-3.5 h-3.5 text-amber-400" />
-            <span>{notifPermission === 'granted' ? 'Test Push Alert' : 'Enable Push Alerts'}</span>
-          </button>
-
           {onBrowseAiring && (
             <button
               onClick={onBrowseAiring}

@@ -122,7 +122,6 @@ export const api = {
   getWatchlist: (status = 'all') => authFetch(`/watchlist?status=${status}`),
   getPublicWatchlist: (userId) => authFetch(`/watchlist/public/${encodeURIComponent(userId)}`),
   getWatchlistStats: () => authFetch('/watchlist/stats'),
-  getPinnedAiringAlerts: () => authFetch('/watchlist/pinned-airing-alerts'),
   addToWatchlist: (animeData) =>
     authFetch('/watchlist', {
       method: 'POST',

@@ -13,7 +13,6 @@ import { GoogleAuthModal } from './components/GoogleAuthModal';
 import { UserProfileModal } from './components/UserProfileModal';
 import { WelcomeLoginPage } from './components/WelcomeLoginPage';
 import { AnimeDetailModal } from './components/AnimeDetailModal';
-import { NotificationDrawer } from './components/NotificationDrawer';
 import { StatsModal } from './components/StatsModal';
 import { SearchModal } from './components/SearchModal';
 import { AniChatBot } from './components/AniChatBot';
@@ -67,7 +66,6 @@ function MainLayout({ onGoToLogin }) {
   const [selectedAnimeId, setSelectedAnimeId] = useState(null);
   const [isStatsOpen, setIsStatsOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
-  const [isNotificationOpen, setIsNotificationOpen] = useState(false);
 
   return (
     <div className="relative min-h-screen flex flex-col justify-between selection:bg-purple-500/30 selection:text-purple-200">
@@ -82,7 +80,6 @@ function MainLayout({ onGoToLogin }) {
         onOpenSearch={() => setIsSearchOpen(true)}
         onOpenStats={() => setIsStatsOpen(true)}
         onOpenDetail={(id) => setSelectedAnimeId(id)}
-        onOpenNotifications={() => setIsNotificationOpen(true)}
         onGoToLogin={onGoToLogin}
       />
 
@@ -178,17 +175,10 @@ function MainLayout({ onGoToLogin }) {
         onOpenDetail={(id) => setSelectedAnimeId(id)}
       />
 
-      {/* Real-time Episode Notification Drawer (IST Alerts) */}
-      <NotificationDrawer
-        isOpen={isNotificationOpen}
-        onClose={() => setIsNotificationOpen(false)}
-        onOpenDetail={(id) => setSelectedAnimeId(id)}
-      />
-
       {/* Interactive AI Anime Recommender Chat Bot */}
       <AniChatBot
         onOpenDetail={(id) => setSelectedAnimeId(id)}
-        hideLauncher={Boolean(selectedAnimeId || isStatsOpen || isSearchOpen || isNotificationOpen)}
+        hideLauncher={Boolean(selectedAnimeId || isStatsOpen || isSearchOpen)}
       />
 
       {/* Public Shared Watched List Showcase Modal */}
