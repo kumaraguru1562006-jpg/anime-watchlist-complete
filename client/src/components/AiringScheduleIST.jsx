@@ -17,7 +17,8 @@ import {
   LayoutGrid,
   ListFilter,
   X,
-  Pin
+  Pin,
+  ArrowLeft
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { api } from '../services/api';
@@ -446,7 +447,7 @@ export const AiringScheduleIST = ({ onOpenDetail }) => {
                   ) : (
                     <>
                       <Plus className="w-4 h-4" />
-                      <span>+ Add To Watch List</span>
+                      <span>Add To Watchlist</span>
                     </>
                   )}
                 </button>
@@ -458,7 +459,7 @@ export const AiringScheduleIST = ({ onOpenDetail }) => {
                   {safeWatchlistMap[featured.animeId]?.status === 'completed' ? (
                     <>
                       <Check className="w-4 h-4 text-cyan-300" />
-                      <span>✓ Watched</span>
+                      <span>Watched</span>
                     </>
                   ) : (
                     <>
@@ -596,7 +597,7 @@ export const AiringScheduleIST = ({ onOpenDetail }) => {
         {/* DAY SELECTOR & VIEW MODE BAR */}
         <div className="p-3 rounded-2xl bg-white/5 border border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           {/* Day Selector Pills */}
-          <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+          <div className="flex items-center gap-2 overflow-x-auto pb-1.5 scrollbar-none touch-pan-x">
             {/* All Days (Grouped Day-Wise) Option */}
             <button
               onClick={() => setSelectedDay('all_day_wise')}
@@ -678,21 +679,23 @@ export const AiringScheduleIST = ({ onOpenDetail }) => {
            DIRECT SEARCH & PREMIERES (Includes Bleach Calamity, Dragon Ball, etc.)
            ========================================================= */
         <div className="space-y-6">
-          <div className="flex items-center justify-between pb-3 border-b border-white/10">
-            <div>
-              <h3 className="text-xl sm:text-2xl font-bold font-heading text-white flex items-center gap-2">
-                <span>Search Results for "{searchQuery}"</span>
-                <span className="px-2.5 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30 text-xs font-mono font-bold">
+          <div className="p-3.5 sm:p-4 rounded-2xl bg-[#0d1226]/80 border border-purple-500/20 backdrop-blur-md flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-lg">
+            <div className="space-y-1 min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <h3 className="text-lg sm:text-xl font-bold font-heading text-white">
+                  Search Results for "{searchQuery}"
+                </h3>
+                <span className="px-2.5 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30 text-xs font-mono font-bold whitespace-nowrap">
                   {searchedSchedules.length} Shows Found
                 </span>
-              </h3>
+              </div>
               <p className="text-xs text-slate-400">
                 Displaying worldwide broadcast schedules, upcoming premier blockbusters, and franchise titles
               </p>
             </div>
             <button
               onClick={() => setSearchQuery('')}
-              className="text-xs text-purple-300 hover:text-purple-200 underline font-medium"
+              className="self-start sm:self-auto px-3.5 py-1.5 rounded-xl bg-purple-500/15 hover:bg-purple-500/25 border border-purple-500/30 text-purple-300 hover:text-white text-xs font-semibold whitespace-nowrap flex-shrink-0 transition-all"
             >
               Clear Search
             </button>
@@ -724,31 +727,34 @@ export const AiringScheduleIST = ({ onOpenDetail }) => {
             return (
               <section key={day} className="space-y-4">
                 {/* Day Header Bar */}
-                <div className="flex items-center justify-between pb-3 border-b border-white/10">
-                  <div className="flex items-center gap-3">
-                    <div className={`p-2.5 rounded-xl ${
+                <div className="p-3 sm:p-3.5 rounded-2xl bg-white/[0.03] border border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className={`p-2 rounded-xl flex-shrink-0 ${
                       isToday 
                         ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' 
                         : 'bg-purple-500/10 text-purple-300 border border-purple-500/20'
                     }`}>
-                      <Calendar className="w-5 h-5" />
+                      <Calendar className="w-4 h-4 sm:w-5 sm:h-5" />
                     </div>
-                    <div>
-                      <h3 className="text-xl sm:text-2xl font-bold font-heading text-white flex items-center gap-2">
-                        <span>{day}</span>
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="text-base sm:text-xl font-bold font-heading text-white">
+                          {day}
+                        </h3>
                         {isToday && (
-                          <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[10px] font-mono font-bold uppercase tracking-wider animate-pulse">
-                            🇮🇳 Today's Broadcasts
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[10px] font-mono font-bold uppercase tracking-wider whitespace-nowrap shadow-sm">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                            <span>🇮🇳 Today's Broadcasts</span>
                           </span>
                         )}
-                      </h3>
-                      <p className="text-xs text-slate-400">
+                      </div>
+                      <p className="text-xs text-slate-400 truncate">
                         {dayAnime.length} {dayAnime.length === 1 ? 'anime' : 'animes'} airing on {day} in Indian Standard Time
                       </p>
                     </div>
                   </div>
 
-                  <span className="px-3 py-1 rounded-xl bg-white/5 border border-white/10 text-xs font-mono font-bold text-slate-300">
+                  <span className="self-start sm:self-auto px-2.5 py-1 rounded-xl bg-white/5 border border-white/10 text-xs font-mono font-bold text-slate-300 whitespace-nowrap">
                     {dayAnime.length} Shows
                   </span>
                 </div>
@@ -772,25 +778,33 @@ export const AiringScheduleIST = ({ onOpenDetail }) => {
            MODE 2: SINGLE DAY VIEW
            ========================================================= */
         <div className="space-y-6">
-          <div className="flex items-center justify-between pb-3 border-b border-white/10">
-            <div>
-              <h3 className="text-2xl font-bold font-heading text-white flex items-center gap-2">
-                <span>{selectedDay} Airing Lineup</span>
+          <div className="p-3.5 sm:p-4 rounded-2xl bg-gradient-to-r from-purple-950/30 via-[#0d1226]/80 to-black/40 border border-purple-500/20 backdrop-blur-md flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-lg">
+            <div className="space-y-1.5 min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <h3 className="text-lg sm:text-2xl font-black font-heading text-white tracking-tight">
+                  {selectedDay} Airing Lineup
+                </h3>
                 {selectedDay.toLowerCase() === todayDayIST.toLowerCase() && (
-                  <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[10px] font-mono font-bold uppercase tracking-wider animate-pulse">
-                    🇮🇳 Today's Lineup
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[10px] font-mono font-bold uppercase tracking-wider whitespace-nowrap shadow-sm">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                    <span>🇮🇳 Today's Lineup</span>
                   </span>
                 )}
-              </h3>
-              <p className="text-xs text-slate-400">
+                <span className="px-2 py-0.5 rounded-lg bg-white/5 border border-white/10 text-[10px] sm:text-[11px] font-mono font-bold text-slate-300 whitespace-nowrap">
+                  {(dayWiseGroups[selectedDay] || []).length} Shows
+                </span>
+              </div>
+              <p className="text-xs text-slate-400 leading-relaxed">
                 Displaying all anime scheduled for {selectedDay} in Indian Standard Time (IST).
               </p>
             </div>
+
             <button
               onClick={() => setSelectedDay('all_day_wise')}
-              className="text-xs text-purple-300 hover:text-purple-200 underline font-medium"
+              className="self-start sm:self-auto px-3.5 py-2 rounded-xl bg-purple-500/15 hover:bg-purple-500/25 border border-purple-500/30 hover:border-purple-400/50 text-purple-300 hover:text-white text-xs font-semibold flex items-center gap-2 transition-all shadow-sm whitespace-nowrap flex-shrink-0"
             >
-              ← Back to All Days
+              <ArrowLeft className="w-3.5 h-3.5 text-purple-400" />
+              <span>Back to All Days</span>
             </button>
           </div>
 
