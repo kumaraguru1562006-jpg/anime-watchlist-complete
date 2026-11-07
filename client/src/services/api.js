@@ -137,6 +137,7 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify({ isPinned }),
     }),
+  getPinnedSchedule: () => authFetch('/watchlist/pinned-schedule'),
   removeFromWatchlist: (animeId) =>
     authFetch(`/watchlist/${animeId}`, {
       method: 'DELETE',

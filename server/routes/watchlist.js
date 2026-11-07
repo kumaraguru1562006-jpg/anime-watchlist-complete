@@ -49,6 +49,209 @@ router.get('/', requireAuth, async (req, res) => {
   }
 });
 
+// Helper to convert UNIX timestamp to Indian Standard Time (IST - Asia/Kolkata UTC+5:30)
+const formatIST = (timestampSec) => {
+  if (!timestampSec) return null;
+  const date = new Date(timestampSec * 1000);
+
+  const timeIST = date.toLocaleTimeString('en-IN', {
+    timeZone: 'Asia/Kolkata',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
+  });
+
+  const dayIST = date.toLocaleDateString('en-IN', {
+    timeZone: 'Asia/Kolkata',
+    weekday: 'long',
+  });
+
+  const dateIST = date.toLocaleDateString('en-IN', {
+    timeZone: 'Asia/Kolkata',
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  });
+
+  const nowSec = Math.floor(Date.now() / 1000);
+  const diffSec = timestampSec - nowSec;
+  const absDiff = Math.abs(diffSec);
+  const totalMins = Math.floor(absDiff / 60);
+  const totalHours = Math.floor(totalMins / 60);
+  const totalDays = Math.floor(totalHours / 24);
+  const remHours = totalHours % 24;
+  const remMins = totalMins % 60;
+
+  let countdown = '';
+  let shortCountdown = '';
+
+  if (diffSec < 0) {
+    if (totalMins < 60) {
+      countdown = `Aired ${totalMins}m ago`;
+      shortCountdown = `${totalMins}m ago`;
+    } else if (totalHours < 24) {
+      countdown = `Aired ${totalHours}h ${remMins}m ago`;
+      shortCountdown = `${totalHours}h ${remMins}m ago`;
+    } else {
+      countdown = `Aired ${totalDays}d ${remHours}h ago`;
+      shortCountdown = `${totalDays}d ago`;
+    }
+  } else {
+    if (totalMins < 60) {
+      countdown = `In ${totalMins} mins`;
+      shortCountdown = `In ${totalMins}m`;
+    } else if (totalHours < 24) {
+      countdown = `In ${totalHours} hours, ${remMins} mins`;
+      shortCountdown = `In ${totalHours}h ${remMins}m`;
+    } else {
+      countdown = `In ${totalDays} day${totalDays > 1 ? 's' : ''}, ${remHours} hours`;
+      shortCountdown = `In ${totalDays}d ${remHours}h`;
+    }
+  }
+
+  const todayISTStr = new Date().toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' });
+  const targetISTStr = date.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' });
+  const isTodayIST = todayISTStr === targetISTStr;
+
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const tomorrowISTStr = tomorrow.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' });
+  const isTomorrowIST = targetISTStr === tomorrowISTStr;
+
+  const dayDisplay = isTodayIST ? `Today (${dayIST})` : isTomorrowIST ? `Tomorrow (${dayIST})` : dayIST;
+  const exactISTDisplay = `${isTodayIST ? 'Today' : isTomorrowIST ? 'Tomorrow' : dayIST} at ${timeIST} IST`;
+
+  return {
+    timeIST,
+    dayIST,
+    dateIST,
+    dayDisplay,
+    exactISTDisplay,
+    countdown,
+    shortCountdown,
+    isTodayIST,
+    isTomorrowIST,
+    timestamp: timestampSec,
+    diffSec,
+    hasAired: diffSec <= 0,
+  };
+};
+
+const formatAiringDate = (d) => {
+  if (!d || !d.year) return null;
+  const monthNames = [
+    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+  ];
+  if (!d.month) return `${d.year}`;
+  const m = monthNames[d.month - 1] || `${d.month}`;
+  if (!d.day) return `${m} ${d.year}`;
+  return `${d.day} ${m} ${d.year}`;
+};
+
+// GET /api/watchlist/pinned-schedule
+// Real-time release dates & times (IST) for user's pinned anime
+router.get('/pinned-schedule', requireAuth, async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    let pinnedItems = [];
+    if (isMongoConnected) {
+      pinnedItems = await WatchlistItem.find({ userId, isPinned: true });
+    } else {
+      const db = getLocalDb();
+      pinnedItems = (db.watchlist || []).filter((i) => i.userId === userId && i.isPinned);
+    }
+
+    if (pinnedItems.length === 0) {
+      return res.json({ schedules: {}, count: 0, items: [] });
+    }
+
+    const animeIds = pinnedItems.map((item) => Number(item.animeId)).filter(Boolean);
+
+    let mediaList = [];
+    try {
+      const query = `
+        query ($ids: [Int]) {
+          Page(page: 1, perPage: 50) {
+            media(id_in: $ids, type: ANIME) {
+              id
+              status
+              episodes
+              season
+              seasonYear
+              format
+              startDate { year month day }
+              endDate { year month day }
+              nextAiringEpisode {
+                id
+                episode
+                airingAt
+                timeUntilAiring
+              }
+            }
+          }
+        }
+      `;
+      const aniRes = await axios.post(
+        'https://graphql.anilist.co',
+        { query, variables: { ids: animeIds } },
+        { headers: { 'Content-Type': 'application/json' }, timeout: 8000 }
+      );
+      mediaList = aniRes.data?.data?.Page?.media || [];
+    } catch (aniErr) {
+      console.warn('AniList lookup warning for pinned schedule:', aniErr.message);
+    }
+
+    const mediaMap = new Map();
+    mediaList.forEach((m) => mediaMap.set(m.id, m));
+
+    const schedules = {};
+
+    for (const item of pinnedItems) {
+      const media = mediaMap.get(Number(item.animeId));
+      const nextEp = media?.nextAiringEpisode;
+      const startDateText = formatAiringDate(media?.startDate) || item.startDate || null;
+      const endDateText = formatAiringDate(media?.endDate) || item.endDate || null;
+      const seasonText = media?.season && media?.seasonYear ? `${media.season} ${media.seasonYear}` : item.season ? `${item.season} ${item.year || ''}`.trim() : null;
+      const releaseDateText = startDateText || seasonText || (media?.seasonYear ? `${media.seasonYear}` : item.year ? `${item.year}` : item.releaseDate || null);
+
+      let nextAiring = null;
+      if (nextEp) {
+        nextAiring = {
+          episode: nextEp.episode,
+          airingAt: nextEp.airingAt,
+          ist: formatIST(nextEp.airingAt),
+        };
+      } else if (item.nextEpisodeAiringAt) {
+        nextAiring = {
+          episode: item.nextEpisodeNumber || (item.episodesWatched ? item.episodesWatched + 1 : 1),
+          airingAt: item.nextEpisodeAiringAt,
+          ist: formatIST(item.nextEpisodeAiringAt),
+        };
+      }
+
+      schedules[item.animeId] = {
+        animeId: item.animeId,
+        airingStatus: media?.status || item.airingStatus || 'RELEASING',
+        format: media?.format || item.format || 'TV',
+        totalEpisodes: media?.episodes || item.totalEpisodes || 0,
+        season: media?.season || item.season || null,
+        seasonYear: media?.seasonYear || item.year || null,
+        startDate: startDateText,
+        endDate: endDateText,
+        releaseDateText,
+        nextAiring,
+      };
+    }
+
+    return res.json({ schedules, count: pinnedItems.length });
+  } catch (err) {
+    console.error('Error fetching pinned schedule:', err);
+    return res.status(500).json({ error: 'Failed to fetch pinned schedule' });
+  }
+});
+
 // GET /api/watchlist/stats
 // Quick summary stats for the current user
 router.get('/stats', requireAuth, async (req, res) => {
@@ -185,6 +388,12 @@ router.post('/', requireAuth, async (req, res) => {
       season,
       airingStatus,
       isPinned,
+      nextEpisodeAiringAt,
+      nextEpisodeNumber,
+      nextEpisodeIST,
+      releaseDate,
+      startDate,
+      endDate,
     } = req.body;
 
     if (!animeId || !title) {
@@ -203,6 +412,12 @@ router.post('/', requireAuth, async (req, res) => {
         if (userScore !== undefined) existing.userScore = userScore;
         if (notes !== undefined) existing.notes = notes;
         if (isPinned !== undefined) existing.isPinned = Boolean(isPinned);
+        if (nextEpisodeAiringAt !== undefined) existing.nextEpisodeAiringAt = nextEpisodeAiringAt;
+        if (nextEpisodeNumber !== undefined) existing.nextEpisodeNumber = nextEpisodeNumber;
+        if (nextEpisodeIST !== undefined) existing.nextEpisodeIST = nextEpisodeIST;
+        if (releaseDate !== undefined) existing.releaseDate = releaseDate;
+        if (startDate !== undefined) existing.startDate = startDate;
+        if (endDate !== undefined) existing.endDate = endDate;
         existing.updatedAt = new Date();
         await existing.save();
         return res.json({ success: true, item: existing, updated: true });
@@ -227,6 +442,12 @@ router.post('/', requireAuth, async (req, res) => {
         season,
         airingStatus,
         isPinned: Boolean(isPinned) || false,
+        nextEpisodeAiringAt,
+        nextEpisodeNumber,
+        nextEpisodeIST,
+        releaseDate,
+        startDate,
+        endDate,
         updatedAt: new Date(),
       });
 
@@ -246,6 +467,12 @@ router.post('/', requireAuth, async (req, res) => {
         if (userScore !== undefined) item.userScore = userScore;
         if (notes !== undefined) item.notes = notes;
         if (isPinned !== undefined) item.isPinned = Boolean(isPinned);
+        if (nextEpisodeAiringAt !== undefined) item.nextEpisodeAiringAt = nextEpisodeAiringAt;
+        if (nextEpisodeNumber !== undefined) item.nextEpisodeNumber = nextEpisodeNumber;
+        if (nextEpisodeIST !== undefined) item.nextEpisodeIST = nextEpisodeIST;
+        if (releaseDate !== undefined) item.releaseDate = releaseDate;
+        if (startDate !== undefined) item.startDate = startDate;
+        if (endDate !== undefined) item.endDate = endDate;
         item.updatedAt = new Date().toISOString();
         db.watchlist[existingIndex] = item;
         saveLocalDb(db);
@@ -272,6 +499,12 @@ router.post('/', requireAuth, async (req, res) => {
         season,
         airingStatus,
         isPinned: Boolean(isPinned) || false,
+        nextEpisodeAiringAt,
+        nextEpisodeNumber,
+        nextEpisodeIST,
+        releaseDate,
+        startDate,
+        endDate,
         updatedAt: new Date().toISOString(),
         createdAt: new Date().toISOString(),
       };

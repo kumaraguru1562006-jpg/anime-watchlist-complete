@@ -266,6 +266,13 @@ export const AuthProvider = ({ children }) => {
     }
 
     try {
+      const nextAiringAt = anime.nextAiring?.airingAt || anime.nextAiringEpisode?.airingAt || anime.ist?.timestamp || anime.nextEpisodeAiringAt;
+      const nextEpisodeNum = anime.nextAiring?.episode || anime.nextAiringEpisode?.episode || anime.episode || anime.nextEpisodeNumber;
+      const nextIST = anime.ist?.exactISTDisplay || anime.nextAiring?.ist?.exactISTDisplay || anime.nextEpisodeIST;
+      const relDate = anime.releaseDateText || anime.releaseDate || anime.seasonYear || anime.year;
+      const sDate = anime.startDate || (anime.startDateFormatted ? anime.startDateFormatted : null);
+      const eDate = anime.endDate || null;
+
       const res = await api.addToWatchlist({
         animeId: anime.id || anime.animeId,
         title: anime.title,
@@ -277,7 +284,13 @@ export const AuthProvider = ({ children }) => {
         totalEpisodes: anime.episodes || anime.totalEpisodes,
         status: targetStatus,
         genres: anime.genres,
-        airingStatus: anime.status,
+        airingStatus: anime.status || anime.airingStatus,
+        nextEpisodeAiringAt: nextAiringAt,
+        nextEpisodeNumber: nextEpisodeNum,
+        nextEpisodeIST: nextIST,
+        releaseDate: relDate ? String(relDate) : undefined,
+        startDate: sDate ? String(sDate) : undefined,
+        endDate: eDate ? String(eDate) : undefined,
       });
 
       const updatedItem = res.item;
@@ -323,6 +336,13 @@ export const AuthProvider = ({ children }) => {
         updatedItem = res.item || { ...existing, isPinned: newPinnedState };
       } else {
         // If not in watchlist yet, add it as 'watching' (ongoing) and pinned!
+        const nextAiringAt = anime.nextAiring?.airingAt || anime.nextAiringEpisode?.airingAt || anime.ist?.timestamp || anime.nextEpisodeAiringAt;
+        const nextEpisodeNum = anime.nextAiring?.episode || anime.nextAiringEpisode?.episode || anime.episode || anime.nextEpisodeNumber;
+        const nextIST = anime.ist?.exactISTDisplay || anime.nextAiring?.ist?.exactISTDisplay || anime.nextEpisodeIST;
+        const relDate = anime.releaseDateText || anime.releaseDate || anime.seasonYear || anime.year;
+        const sDate = anime.startDate || (anime.startDateFormatted ? anime.startDateFormatted : null);
+        const eDate = anime.endDate || null;
+
         const res = await api.addToWatchlist({
           animeId,
           title: anime.title,
@@ -336,6 +356,12 @@ export const AuthProvider = ({ children }) => {
           genres: anime.genres,
           airingStatus: anime.status || anime.airingStatus,
           isPinned: true,
+          nextEpisodeAiringAt: nextAiringAt,
+          nextEpisodeNumber: nextEpisodeNum,
+          nextEpisodeIST: nextIST,
+          releaseDate: relDate ? String(relDate) : undefined,
+          startDate: sDate ? String(sDate) : undefined,
+          endDate: eDate ? String(eDate) : undefined,
         });
         updatedItem = res.item;
       }

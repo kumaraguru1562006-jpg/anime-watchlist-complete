@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Pin, 
   Tv, 
@@ -16,7 +16,9 @@ import {
   Calendar,
   Clock,
   Flame,
-  Check
+  Check,
+  ArrowUpDown,
+  Filter
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { useAuth } from '../context/AuthContext';
@@ -25,8 +27,11 @@ import { api } from '../services/api';
 export const PinnedAnimePage = ({ onOpenDetail, onBrowseAiring }) => {
   const { user, openAuthModal, watchlistMap, togglePinAnime, updateEpisodeProgress, refreshStats } = useAuth();
   const [pinnedItems, setPinnedItems] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [schedules, setSchedules] = useState({});
+  const [loadingSchedules, setLoadingSchedules] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [sortOption, setSortOption] = useState('next_airing'); // 'next_airing' | 'pinned_recent' | 'release_date' | 'title'
+  const [filterSchedule, setFilterSchedule] = useState('all'); // 'all' | 'airing_soon' | 'completed'
   const [editingNotesItem, setEditingNotesItem] = useState(null);
   const [tempNotes, setTempNotes] = useState('');
 
@@ -34,15 +39,39 @@ export const PinnedAnimePage = ({ onOpenDetail, onBrowseAiring }) => {
   useEffect(() => {
     if (!user) {
       setPinnedItems([]);
-      setLoading(false);
       return;
     }
 
     const items = Object.values(watchlistMap || {}).filter((i) => i.isPinned);
     items.sort((a, b) => new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0));
     setPinnedItems(items);
-    setLoading(false);
   }, [watchlistMap, user]);
+
+  // Fetch real-time release dates & airing times (IST) for all pinned anime
+  useEffect(() => {
+    let isMounted = true;
+    const loadSchedules = async () => {
+      if (!user) return;
+      try {
+        const data = await api.getPinnedSchedule();
+        if (isMounted && data?.schedules) {
+          setSchedules(data.schedules);
+        }
+      } catch (err) {
+        console.warn('Failed to load pinned schedules:', err);
+      } finally {
+        if (isMounted) setLoadingSchedules(false);
+      }
+    };
+
+    loadSchedules();
+    // Auto-refresh schedules every 60s for live IST countdowns
+    const timer = setInterval(loadSchedules, 60000);
+    return () => {
+      isMounted = false;
+      clearInterval(timer);
+    };
+  }, [user, pinnedItems.length]);
 
   const handleStatusChange = async (item, newStatus) => {
     try {
@@ -93,15 +122,79 @@ export const PinnedAnimePage = ({ onOpenDetail, onBrowseAiring }) => {
     }
   };
 
-  const filteredItems = pinnedItems.filter((item) => {
-    if (!searchTerm) return true;
-    const term = searchTerm.toLowerCase();
-    return (
-      item.title?.toLowerCase().includes(term) ||
-      item.englishTitle?.toLowerCase().includes(term) ||
-      item.genres?.some((g) => g.toLowerCase().includes(term))
-    );
-  });
+  // Find the pinned anime whose next episode airs the soonest
+  const soonestAiringShow = useMemo(() => {
+    const upcoming = pinnedItems
+      .map((item) => {
+        const sched = schedules[item.animeId];
+        const airingAt = sched?.nextAiring?.airingAt || item.nextEpisodeAiringAt;
+        return { item, sched, airingAt };
+      })
+      .filter((x) => x.sched?.nextAiring && x.airingAt)
+      .sort((a, b) => a.airingAt - b.airingAt);
+
+    return upcoming[0] || null;
+  }, [pinnedItems, schedules]);
+
+  // Counts for filter pills
+  const airingSoonCount = useMemo(() => {
+    return pinnedItems.filter((i) => Boolean(schedules[i.animeId]?.nextAiring)).length;
+  }, [pinnedItems, schedules]);
+
+  const completedCount = useMemo(() => {
+    return pinnedItems.filter((i) => i.status === 'completed' || schedules[i.animeId]?.airingStatus === 'FINISHED').length;
+  }, [pinnedItems, schedules]);
+
+  // Filter and Sort pinned anime list
+  const processedItems = useMemo(() => {
+    let list = [...pinnedItems];
+
+    // Search query filter
+    if (searchTerm.trim()) {
+      const term = searchTerm.toLowerCase().trim();
+      list = list.filter((item) => {
+        const sched = schedules[item.animeId];
+        return (
+          item.title?.toLowerCase().includes(term) ||
+          item.englishTitle?.toLowerCase().includes(term) ||
+          item.genres?.some((g) => g.toLowerCase().includes(term)) ||
+          sched?.releaseDateText?.toLowerCase().includes(term) ||
+          sched?.nextAiring?.ist?.dayIST?.toLowerCase().includes(term) ||
+          sched?.nextAiring?.ist?.timeIST?.toLowerCase().includes(term)
+        );
+      });
+    }
+
+    // Schedule / Status category filter
+    if (filterSchedule === 'airing_soon') {
+      list = list.filter((item) => Boolean(schedules[item.animeId]?.nextAiring));
+    } else if (filterSchedule === 'completed') {
+      list = list.filter((item) => item.status === 'completed' || schedules[item.animeId]?.airingStatus === 'FINISHED');
+    }
+
+    // Sort order
+    list.sort((a, b) => {
+      const schedA = schedules[a.animeId];
+      const schedB = schedules[b.animeId];
+
+      if (sortOption === 'next_airing') {
+        const airA = schedA?.nextAiring?.airingAt || a.nextEpisodeAiringAt || Infinity;
+        const airB = schedB?.nextAiring?.airingAt || b.nextEpisodeAiringAt || Infinity;
+        if (airA !== airB) return airA - airB;
+      } else if (sortOption === 'release_date') {
+        const yearA = schedA?.seasonYear || a.year || 0;
+        const yearB = schedB?.seasonYear || b.year || 0;
+        if (yearA !== yearB) return yearB - yearA;
+      } else if (sortOption === 'title') {
+        return (a.title || '').localeCompare(b.title || '');
+      }
+
+      // Default: recently updated
+      return new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0);
+    });
+
+    return list;
+  }, [pinnedItems, schedules, searchTerm, filterSchedule, sortOption]);
 
   const totalEpisodesWatched = pinnedItems.reduce((acc, i) => acc + (i.episodesWatched || 0), 0);
 
@@ -117,7 +210,7 @@ export const PinnedAnimePage = ({ onOpenDetail, onBrowseAiring }) => {
           Sign In to Access Your Pinned Anime
         </h2>
         <p className="text-xs sm:text-sm text-slate-400 mt-2 max-w-md mx-auto leading-relaxed">
-          Log in with your Google or verified email account to pin ongoing anime, view live episode progress, and track broadcasts separately.
+          Log in with your Google or verified email account to pin ongoing anime, view live episode progress, and track release dates & broadcast times in Indian Standard Time (IST).
         </p>
         <button
           onClick={openAuthModal}
@@ -152,9 +245,15 @@ export const PinnedAnimePage = ({ onOpenDetail, onBrowseAiring }) => {
                 <span className="px-3 py-1 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 text-xs font-mono font-bold">
                   {pinnedItems.length} Pinned
                 </span>
+                {airingSoonCount > 0 && (
+                  <span className="px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-xs font-mono font-bold flex items-center gap-1.5 animate-pulse">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-400"></span>
+                    <span>{airingSoonCount} Airing Episodes Scheduled</span>
+                  </span>
+                )}
               </div>
               <p className="text-xs sm:text-sm text-slate-300 mt-1 max-w-xl">
-                Your dedicated priority watch space. Update episode progress in 1 click, track Indian Standard Time airings, and keep personal notes.
+                Your dedicated priority watch space. Displays live release dates, episode airing times in Indian Standard Time (IST), countdowns, and progress tracking.
               </p>
             </div>
           </div>
@@ -171,15 +270,57 @@ export const PinnedAnimePage = ({ onOpenDetail, onBrowseAiring }) => {
             </div>
           </div>
         </div>
+
+        {/* Live Broadcast Ticker for the Soonest Airing Pinned Anime */}
+        {soonestAiringShow?.sched?.nextAiring && (
+          <div className="relative z-10 mt-5 pt-4 border-t border-white/10 flex flex-wrap items-center justify-between gap-3 text-xs bg-black/30 -mx-6 -mb-6 sm:-mx-8 sm:-mb-8 p-4 px-6 sm:px-8">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="relative flex h-2.5 w-2.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+              </span>
+              <span className="text-amber-300 font-mono font-bold tracking-wider text-[11px]">
+                NEXT AIRING EPISODE:
+              </span>
+              <span 
+                onClick={() => onOpenDetail(soonestAiringShow.item.animeId)}
+                className="text-white font-bold hover:text-amber-300 cursor-pointer transition-colors underline decoration-amber-500/50 underline-offset-4"
+              >
+                {soonestAiringShow.item.title}
+              </span>
+              <span className="px-2 py-0.5 rounded-md bg-purple-500/20 text-purple-300 border border-purple-500/30 font-mono font-bold text-[11px]">
+                Episode {soonestAiringShow.sched.nextAiring.episode}
+              </span>
+              <span className="text-cyan-300 font-mono font-semibold flex items-center gap-1">
+                <span>🇮🇳</span>
+                <span>{soonestAiringShow.sched.nextAiring.ist.dayDisplay} at {soonestAiringShow.sched.nextAiring.ist.timeIST} IST</span>
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className="px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-mono font-bold text-[11px]">
+                {soonestAiringShow.sched.nextAiring.ist.countdown}
+              </span>
+              <button
+                onClick={() => onOpenDetail(soonestAiringShow.item.animeId)}
+                className="px-3 py-1 rounded-xl bg-white/10 hover:bg-white/20 text-white font-semibold text-xs flex items-center gap-1 transition-all"
+              >
+                <span>Details</span>
+                <ExternalLink className="w-3 h-3 text-amber-300" />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Filter / Search Bar */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+      {/* Filter, Sort, and Search Bar */}
+      <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
+        {/* Search Input */}
         <div className="relative flex-1 max-w-md">
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-amber-400" />
           <input
             type="text"
-            placeholder="Search pinned anime by title or genre..."
+            placeholder="Search pinned anime by title, release date, or genre..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-10 pr-9 py-2.5 rounded-xl bg-black/40 border border-white/10 text-xs sm:text-sm text-white placeholder-slate-400 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500/50 transition-colors shadow-inner"
@@ -194,32 +335,89 @@ export const PinnedAnimePage = ({ onOpenDetail, onBrowseAiring }) => {
           )}
         </div>
 
+        {/* Filter Pills & Sort Selector */}
         <div className="flex flex-wrap items-center gap-2">
+          {/* Filter Pills */}
+          <div className="flex items-center gap-1 p-1 rounded-xl bg-black/40 border border-white/10">
+            <button
+              onClick={() => setFilterSchedule('all')}
+              className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${
+                filterSchedule === 'all'
+                  ? 'bg-amber-500 text-black shadow-md'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              All ({pinnedItems.length})
+            </button>
+            <button
+              onClick={() => setFilterSchedule('airing_soon')}
+              className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all flex items-center gap-1 ${
+                filterSchedule === 'airing_soon'
+                  ? 'bg-emerald-500 text-black shadow-md'
+                  : 'text-slate-400 hover:text-emerald-300'
+              }`}
+            >
+              <Clock className="w-3 h-3" />
+              <span>Airing Next ({airingSoonCount})</span>
+            </button>
+            <button
+              onClick={() => setFilterSchedule('completed')}
+              className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${
+                filterSchedule === 'completed'
+                  ? 'bg-purple-600 text-white shadow-md'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              Completed ({completedCount})
+            </button>
+          </div>
+
+          {/* Sort Selector */}
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-black/40 border border-white/10 text-xs">
+            <ArrowUpDown className="w-3.5 h-3.5 text-amber-400" />
+            <select
+              value={sortOption}
+              onChange={(e) => setSortOption(e.target.value)}
+              className="bg-transparent text-slate-200 font-semibold focus:outline-none cursor-pointer"
+            >
+              <option value="next_airing" className="bg-[#0e1329] text-white">⚡ Airing Soonest</option>
+              <option value="pinned_recent" className="bg-[#0e1329] text-white">📌 Recently Pinned</option>
+              <option value="release_date" className="bg-[#0e1329] text-white">📅 Release Date (Newest)</option>
+              <option value="title" className="bg-[#0e1329] text-white">🔤 Title (A-Z)</option>
+            </select>
+          </div>
+
           {onBrowseAiring && (
             <button
               onClick={onBrowseAiring}
-              className="px-4 py-2.5 rounded-xl bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/30 hover:border-purple-400 text-purple-300 hover:text-white text-xs font-semibold flex items-center justify-center gap-2 transition-all"
+              className="px-3.5 py-2 rounded-xl bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/30 hover:border-purple-400 text-purple-300 hover:text-white text-xs font-semibold flex items-center justify-center gap-1.5 transition-all"
             >
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>Pin More From Airing Schedule</span>
+              <Sparkles className="w-3.5 h-3.5 text-purple-400" />
+              <span>Pin From Schedule</span>
             </button>
           )}
         </div>
       </div>
 
       {/* Empty State */}
-      {filteredItems.length === 0 ? (
+      {processedItems.length === 0 ? (
         <div className="p-12 text-center rounded-3xl liquid-glass-card border border-white/10 text-slate-400 space-y-4">
           <div className="w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center mx-auto text-amber-400">
             <Pin className="w-8 h-8 rotate-45" />
           </div>
           <div>
             <h3 className="text-lg font-bold font-heading text-white">
-              {searchTerm ? 'No matching pinned anime' : 'No Pinned Anime Yet'}
+              {searchTerm 
+                ? 'No matching pinned anime' 
+                : filterSchedule === 'airing_soon'
+                ? 'No Pinned Anime With Upcoming Airing Episodes'
+                : 'No Pinned Anime Yet'}
             </h3>
             <p className="text-xs sm:text-sm text-slate-400 mt-1 max-w-md mx-auto">
               {searchTerm 
                 ? 'Try clearing your search query to see all your pinned anime.'
+                : filterSchedule === 'airing_soon'
+                ? 'None of your currently pinned anime have an upcoming episode in this window, or they have completed airing.'
                 : 'Click the 📌 Pin button on any airing show, discover card, or detail modal to pin your ongoing favorites right here!'}
             </p>
           </div>
@@ -236,12 +434,13 @@ export const PinnedAnimePage = ({ onOpenDetail, onBrowseAiring }) => {
       ) : (
         /* Pinned Shows Grid */
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {filteredItems.map((item) => {
+          {processedItems.map((item) => {
             const episodesWatched = item.episodesWatched || 0;
             const totalEpisodes = item.totalEpisodes || 0;
             const progressPercent = totalEpisodes > 0 
               ? Math.min(100, Math.round((episodesWatched / totalEpisodes) * 100))
               : null;
+            const sched = schedules[item.animeId];
 
             return (
               <div
@@ -261,14 +460,14 @@ export const PinnedAnimePage = ({ onOpenDetail, onBrowseAiring }) => {
                 <div className="flex gap-4">
                   <div
                     onClick={() => onOpenDetail(item.animeId)}
-                    className="relative w-24 sm:w-28 h-36 sm:h-40 rounded-xl overflow-hidden flex-shrink-0 cursor-pointer ring-1 ring-white/10 group-hover:ring-amber-400/50 transition-all shadow-lg"
+                    className="relative w-24 sm:w-28 h-36 sm:h-44 rounded-xl overflow-hidden flex-shrink-0 cursor-pointer ring-1 ring-white/10 group-hover:ring-amber-400/50 transition-all shadow-lg"
                   >
                     <img
                       src={item.coverImage}
                       alt={item.title}
                       className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                     />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent pointer-events-none" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-transparent to-transparent pointer-events-none" />
 
                     <div className="absolute top-2 left-2">
                       <span className="px-1.5 py-0.5 rounded-md bg-amber-500/90 text-black text-[9px] font-black uppercase tracking-tight flex items-center gap-0.5 shadow-sm">
@@ -277,10 +476,23 @@ export const PinnedAnimePage = ({ onOpenDetail, onBrowseAiring }) => {
                       </span>
                     </div>
 
-                    <div className="absolute bottom-2 left-2">
-                      <span className="px-1.5 py-0.5 rounded bg-black/70 border border-white/15 text-[9px] font-mono font-bold text-white">
-                        {item.format || 'TV'}
-                      </span>
+                    {/* Bottom overlay badge on poster displaying release / airing schedule */}
+                    <div className="absolute bottom-1.5 left-1.5 right-1.5">
+                      {sched?.nextAiring ? (
+                        <div className="px-1.5 py-0.5 rounded-md bg-purple-950/90 backdrop-blur-md border border-purple-500/50 text-[9px] font-mono flex items-center justify-between shadow-md">
+                          <span className="text-amber-300 font-bold truncate">
+                            {sched.nextAiring.ist.timeIST}
+                          </span>
+                          <span className="text-cyan-300 font-bold text-[8px] ml-1">
+                            {sched.nextAiring.ist.shortCountdown}
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="px-1.5 py-0.5 rounded-md bg-black/75 border border-white/15 text-[9px] font-mono text-slate-300 flex items-center justify-between">
+                          <span>{item.format || 'TV'}</span>
+                          <span>{sched?.releaseDateText || item.releaseDate || item.year || ''}</span>
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -338,6 +550,63 @@ export const PinnedAnimePage = ({ onOpenDetail, onBrowseAiring }) => {
                       </p>
                     )}
                   </div>
+                </div>
+
+                {/* DEDICATED RELEASE DATE & BROADCAST TIME SHOWCASE BOX */}
+                <div className="p-3 rounded-2xl bg-gradient-to-r from-purple-950/40 via-[#0d1226] to-black/60 border border-purple-500/30 space-y-2">
+                  {sched?.nextAiring ? (
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between gap-1 text-[10px]">
+                        <span className="font-bold text-amber-300 flex items-center gap-1.5 font-mono">
+                          <span className="relative flex h-2 w-2">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                          </span>
+                          <span>EP {sched.nextAiring.episode} AIRING (IST)</span>
+                        </span>
+                        <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-bold font-mono text-[9px]">
+                          {sched.nextAiring.ist.countdown}
+                        </span>
+                      </div>
+
+                      <div className="flex flex-wrap items-center justify-between gap-2 pt-0.5">
+                        <div className="flex items-center gap-1.5 text-xs text-white font-medium">
+                          <Calendar className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" />
+                          <span>{sched.nextAiring.ist.dayDisplay}, {sched.nextAiring.ist.dateIST}</span>
+                        </div>
+                        <div className="flex items-center gap-1 text-xs text-cyan-300 font-bold font-mono">
+                          <Clock className="w-3.5 h-3.5 text-cyan-400 flex-shrink-0" />
+                          <span>{sched.nextAiring.ist.timeIST} IST</span>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between text-xs py-0.5">
+                      <div className="flex items-center gap-1.5 text-slate-300">
+                        <Calendar className="w-3.5 h-3.5 text-purple-400 flex-shrink-0" />
+                        <span className="text-[11px] text-slate-400">Release Date:</span>
+                        <span className="font-semibold text-white text-[11px]">
+                          {sched?.releaseDateText || item.releaseDate || (item.year ? String(item.year) : 'Released')}
+                        </span>
+                      </div>
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-slate-400 font-mono">
+                        {sched?.airingStatus === 'FINISHED' ? 'Completed Series' : sched?.airingStatus || 'Finished'}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Premiered / Season footer row if next episode exists */}
+                  {sched?.nextAiring && (sched.releaseDateText || item.releaseDate || item.year) && (
+                    <div className="pt-1.5 border-t border-white/10 flex items-center justify-between text-[10px] text-slate-400">
+                      <span className="flex items-center gap-1">
+                        <Sparkles className="w-3 h-3 text-purple-400" />
+                        <span>Premiered: {sched.releaseDateText || item.releaseDate || item.year}</span>
+                      </span>
+                      <span className="font-mono text-purple-300">
+                        {sched.airingStatus || 'RELEASING'}
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Episode Progress & Bar */}

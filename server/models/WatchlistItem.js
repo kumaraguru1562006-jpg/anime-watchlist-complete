@@ -74,6 +74,21 @@ const watchlistItemSchema = new mongoose.Schema({
   nextEpisodeAiringAt: {
     type: Number,
   },
+  nextEpisodeNumber: {
+    type: Number,
+  },
+  nextEpisodeIST: {
+    type: String,
+  },
+  releaseDate: {
+    type: String,
+  },
+  startDate: {
+    type: String,
+  },
+  endDate: {
+    type: String,
+  },
   isFavorite: {
     type: Boolean,
     default: false,
