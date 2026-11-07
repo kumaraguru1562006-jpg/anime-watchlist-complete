@@ -47,6 +47,23 @@ export const AniChatBot = ({ onOpenDetail, hideLauncher = false }) => {
   const [actionDone, setActionDone] = useState({});
   const messagesEndRef = useRef(null);
 
+  // Active AI Provider selection ('auto' | 'openai' | 'gemini')
+  const [preferredProvider, setPreferredProvider] = useState(() => {
+    return localStorage.getItem('anisphere_preferred_provider') || 'auto';
+  });
+
+  // OpenAI API key state (stored in localStorage and synced with server)
+  const [customOpenAiKey, setCustomOpenAiKey] = useState(() => {
+    return localStorage.getItem('anisphere_openai_api_key') || '';
+  });
+  const [inputOpenAiKey, setInputOpenAiKey] = useState(() => {
+    return localStorage.getItem('anisphere_openai_api_key') || '';
+  });
+  const [showOpenAiPassword, setShowOpenAiPassword] = useState(false);
+  const [openAiSaveLoading, setOpenAiSaveLoading] = useState(false);
+  const [openAiSaveMsg, setOpenAiSaveMsg] = useState(null);
+  const [chatStatus, setChatStatus] = useState(null);
+
   // Gemini API key state (stored in localStorage and synced with server)
   const [customGeminiKey, setCustomGeminiKey] = useState(() => {
     return localStorage.getItem('anisphere_gemini_api_key') || '';
@@ -289,13 +306,83 @@ I am your **all-rounder anime intelligence**, rigorously trained across thousand
     }
   };
 
-  // Sync inputKey when settings open
+  // Fetch chat provider status on mount and when opening settings
+  useEffect(() => {
+    const fetchChatStatus = async () => {
+      try {
+        const status = await api.getChatStatus();
+        if (status) setChatStatus(status);
+      } catch (e) {
+        // Silent fallback
+      }
+    };
+    fetchChatStatus();
+  }, [isSettingsOpen]);
+
+  // Sync keys when settings open
   useEffect(() => {
     if (isSettingsOpen) {
       setInputKey(customGeminiKey || '');
       setKeySaveMsg(null);
+      setInputOpenAiKey(customOpenAiKey || '');
+      setOpenAiSaveMsg(null);
     }
-  }, [isSettingsOpen, customGeminiKey]);
+  }, [isSettingsOpen, customGeminiKey, customOpenAiKey]);
+
+  const handleSaveOpenAiKey = async () => {
+    const trimmed = inputOpenAiKey.trim();
+    if (!trimmed) return;
+    setOpenAiSaveLoading(true);
+    setOpenAiSaveMsg(null);
+
+    try {
+      const res = await api.setOpenAiApiKey({ apiKey: trimmed });
+      if (res && res.success) {
+        localStorage.setItem('anisphere_openai_api_key', trimmed);
+        setCustomOpenAiKey(trimmed);
+        if (res.status === 'quota_exhausted') {
+          setOpenAiSaveMsg({
+            type: 'warning',
+            text: res.warning || 'Key authenticated with OpenAI! Billing quota is currently exhausted. Key is saved and will automatically activate once credits are added at platform.openai.com. (Gemini / AniChat will answer in the meantime).',
+          });
+        } else {
+          setOpenAiSaveMsg({
+            type: 'success',
+            text: 'OpenAI API key verified & activated! ChatGPT (GPT-4o Mini) is live in AniChat.',
+          });
+        }
+        api.getChatStatus().then((st) => st && setChatStatus(st)).catch(() => {});
+      } else {
+        setOpenAiSaveMsg({
+          type: 'error',
+          text: res?.error || 'Failed to verify key with OpenAI API.',
+        });
+      }
+    } catch (err) {
+      setOpenAiSaveMsg({
+        type: 'error',
+        text: err.message || 'Verification failed. Please check the OpenAI API key.',
+      });
+    } finally {
+      setOpenAiSaveLoading(false);
+    }
+  };
+
+  const handleResetOpenAiKey = () => {
+    localStorage.removeItem('anisphere_openai_api_key');
+    setCustomOpenAiKey('');
+    setInputOpenAiKey('');
+    setOpenAiSaveMsg({
+      type: 'success',
+      text: 'Reset to default server OpenAI key.',
+    });
+    api.getChatStatus().then((st) => st && setChatStatus(st)).catch(() => {});
+  };
+
+  const handleProviderSelect = (providerId) => {
+    setPreferredProvider(providerId);
+    localStorage.setItem('anisphere_preferred_provider', providerId);
+  };
 
   const handleSaveApiKey = async () => {
     const trimmed = inputKey.trim();
@@ -451,10 +538,11 @@ I am your **all-rounder anime intelligence**, rigorously trained across thousand
         message: trimmed,
         history: historyContext,
         apiKey: customGeminiKey || undefined,
+        openaiApiKey: customOpenAiKey || undefined,
         grounding: searchGroundingEnabled,
         tavilyApiKey: tavilyApiKey || undefined,
         tavilyMcpUrl: tavilyMcpUrl || undefined,
-        provider: 'auto',
+        provider: preferredProvider,
       });
 
       const botMsg = {
@@ -814,7 +902,7 @@ I am your **all-rounder anime intelligence**, rigorously trained across thousand
             </div>
           )}
 
-          {/* Settings Drawer (Gemini API Key Configuration & History Management) */}
+          {/* Settings Drawer (AI Provider, OpenAI & Gemini Configuration, History Management) */}
           {isSettingsOpen && (
             <div className="p-4 bg-[#0a0f26] border-b border-purple-500/30 space-y-3.5 animate-fade-in text-xs max-h-80 overflow-y-auto">
               <div className="flex items-center justify-between">
@@ -824,8 +912,156 @@ I am your **all-rounder anime intelligence**, rigorously trained across thousand
                 </span>
                 <span className="text-[10px] text-emerald-400 flex items-center gap-1 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
                   <ShieldCheck className="w-3 h-3" />
-                  {customGeminiKey ? 'Custom Key Active' : 'Gemini 3.5 Flash Active'}
+                  {chatStatus?.providers?.openai?.keyConfigured
+                    ? 'OpenAI & Gemini Ready'
+                    : customGeminiKey
+                    ? 'Custom Key Active'
+                    : 'Gemini 3.5 Flash Active'}
                 </span>
+              </div>
+
+              {/* AI Engine & Provider Switcher */}
+              <div className="bg-gradient-to-r from-purple-950/40 via-indigo-950/40 to-cyan-950/40 p-3 rounded-2xl border border-purple-500/30 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-white flex items-center gap-1.5 text-xs">
+                    <Zap className="w-3.5 h-3.5 text-amber-400" />
+                    <span>AI Intelligence Provider</span>
+                  </span>
+                  <span className="text-[10px] text-cyan-300 font-mono font-bold">
+                    {preferredProvider === 'openai' ? 'OpenAI ChatGPT' : preferredProvider === 'gemini' ? 'Gemini 3.5' : 'Auto (Smart Fallback)'}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-3 gap-1.5 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => handleProviderSelect('auto')}
+                    className={`py-1.5 px-2 rounded-xl text-[11px] font-semibold transition-all border text-center ${
+                      preferredProvider === 'auto'
+                        ? 'bg-gradient-to-r from-purple-600 to-indigo-600 border-purple-400/60 text-white shadow-md'
+                        : 'bg-white/5 border-white/10 text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    🤖 Auto
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleProviderSelect('openai')}
+                    className={`py-1.5 px-2 rounded-xl text-[11px] font-semibold transition-all border text-center ${
+                      preferredProvider === 'openai'
+                        ? 'bg-gradient-to-r from-emerald-600 to-teal-600 border-emerald-400/60 text-white shadow-md'
+                        : 'bg-white/5 border-white/10 text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    🧠 ChatGPT
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleProviderSelect('gemini')}
+                    className={`py-1.5 px-2 rounded-xl text-[11px] font-semibold transition-all border text-center ${
+                      preferredProvider === 'gemini'
+                        ? 'bg-gradient-to-r from-cyan-600 to-blue-600 border-cyan-400/60 text-white shadow-md'
+                        : 'bg-white/5 border-white/10 text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    ⚡ Gemini
+                  </button>
+                </div>
+              </div>
+
+              {/* OpenAI ChatGPT Configuration Section */}
+              <div className="bg-white/5 p-3 rounded-xl border border-white/10 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-white flex items-center gap-1.5 text-xs">
+                    <Bot className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>OpenAI ChatGPT API Key</span>
+                  </span>
+                  <span className="text-[9px] text-emerald-300 bg-emerald-500/20 px-1.5 py-0.5 rounded border border-emerald-500/30">
+                    {chatStatus?.providers?.openai?.keyConfigured ? 'Integrated ⚡' : 'GPT-4o Mini'}
+                  </span>
+                </div>
+
+                <p className="text-[11px] text-slate-400 leading-relaxed">
+                  {chatStatus?.providers?.openai?.keyConfigured ? (
+                    <span>
+                      Server OpenAI key integrated (<code className="text-emerald-300 font-mono">{chatStatus.providers.openai.keyMasked || 'sk-proj...'}</code>). You can override or update with your custom key below.
+                    </span>
+                  ) : (
+                    <span>
+                      Enter your OpenAI API key (<code className="text-emerald-300 font-mono">sk-proj-...</code>) to power AniChat with ChatGPT GPT-4o Mini.
+                    </span>
+                  )}
+                </p>
+
+                <div className="relative">
+                  <input
+                    type={showOpenAiPassword ? 'text' : 'password'}
+                    value={inputOpenAiKey}
+                    onChange={(e) => {
+                      setInputOpenAiKey(e.target.value);
+                      if (openAiSaveMsg) setOpenAiSaveMsg(null);
+                    }}
+                    placeholder="Enter OpenAI Key (sk-proj-...)"
+                    className="w-full bg-[#0d122b] border border-white/10 focus:border-emerald-500 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none pr-9 font-mono"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowOpenAiPassword(!showOpenAiPassword)}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+                  >
+                    {showOpenAiPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
+
+                {openAiSaveMsg && (
+                  <div
+                    className={`p-2 rounded-lg text-[11px] flex items-start gap-1.5 ${
+                      openAiSaveMsg.type === 'success'
+                        ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-300'
+                        : openAiSaveMsg.type === 'warning'
+                        ? 'bg-amber-500/10 border border-amber-500/20 text-amber-300'
+                        : 'bg-rose-500/10 border border-rose-500/20 text-rose-300'
+                    }`}
+                  >
+                    {openAiSaveMsg.type === 'success' ? (
+                      <CheckCircle2 className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+                    ) : (
+                      <AlertCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+                    )}
+                    <span className="leading-snug">{openAiSaveMsg.text}</span>
+                  </div>
+                )}
+
+                <div className="flex items-center gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={handleSaveOpenAiKey}
+                    disabled={openAiSaveLoading || !inputOpenAiKey.trim()}
+                    className="flex-1 py-1.5 px-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 disabled:opacity-50 text-white font-semibold text-xs flex items-center justify-center gap-1.5 shadow-sm transition-all"
+                  >
+                    {openAiSaveLoading ? (
+                      <>
+                        <RefreshCw className="w-3 h-3 animate-spin" />
+                        <span>Verifying OpenAI...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Zap className="w-3 h-3 text-emerald-300" />
+                        <span>Save & Activate OpenAI Key</span>
+                      </>
+                    )}
+                  </button>
+
+                  {(customOpenAiKey || chatStatus?.providers?.openai?.keyConfigured) && (
+                    <button
+                      type="button"
+                      onClick={handleResetOpenAiKey}
+                      className="py-1.5 px-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white text-xs border border-white/5 transition-all"
+                    >
+                      Reset
+                    </button>
+                  )}
+                </div>
               </div>
 
               {/* Gemini API Key Configuration Section */}

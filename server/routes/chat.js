@@ -254,11 +254,31 @@ Formatting requirements:
 \`\`\`
 Do not include any text after the closing \`\`\` of that json block.`;
 
+// Helper to persist environment variables to server/.env
+const persistEnvKey = (keyName, val) => {
+  try {
+    const envPath = path.resolve(__dirname, '../.env');
+    if (fs.existsSync(envPath)) {
+      let envContent = fs.readFileSync(envPath, 'utf8');
+      const regex = new RegExp(`^${keyName}=.*`, 'm');
+      if (regex.test(envContent)) {
+        envContent = envContent.replace(regex, `${keyName}=${val}`);
+      } else {
+        envContent += `\n${keyName}=${val}`;
+      }
+      fs.writeFileSync(envPath, envContent, 'utf8');
+    }
+  } catch (fsErr) {
+    console.warn(`Could not persist ${keyName} to .env file:`, fsErr.message);
+  }
+};
+
 // 1. Check AI Provider and Keys status
 router.get('/status', (req, res) => {
   const currentKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || '';
+  const currentOpenAiKey = process.env.OPENAI_API_KEY || '';
   const hasEnvGemini = Boolean(currentKey);
-  const hasEnvOpenAI = Boolean(process.env.OPENAI_API_KEY);
+  const hasEnvOpenAI = Boolean(currentOpenAiKey);
 
   res.json({
     online: true,
@@ -273,7 +293,9 @@ router.get('/status', (req, res) => {
       openai: {
         available: hasEnvOpenAI,
         model: 'gpt-4o-mini',
-        label: 'OpenAI ChatGPT',
+        label: 'OpenAI ChatGPT (GPT-4o Mini) 🧠',
+        keyConfigured: hasEnvOpenAI,
+        keyMasked: currentOpenAiKey ? `${currentOpenAiKey.slice(0, 7)}...${currentOpenAiKey.slice(-4)}` : null,
       },
       tavily: {
         available: true,
@@ -294,7 +316,7 @@ router.get('/status', (req, res) => {
         label: 'AniChat 🍙 Built-In Anime Intelligence',
       },
     },
-    defaultProvider: hasEnvGemini ? 'gemini' : hasEnvOpenAI ? 'openai' : 'builtin',
+    defaultProvider: hasEnvOpenAI ? 'openai' : hasEnvGemini ? 'gemini' : 'builtin',
     grounding: {
       anilist: true,
       tavily: Boolean(process.env.TAVILY_API_KEY),
@@ -304,7 +326,7 @@ router.get('/status', (req, res) => {
   });
 });
 
-// Set / Update Google Gemini API Key
+// Set / Update Google Gemini API Key (or OpenAI key if prefixed with sk-)
 router.post('/set-api-key', async (req, res) => {
   const { apiKey } = req.body;
   if (!apiKey || typeof apiKey !== 'string' || !apiKey.trim()) {
@@ -312,6 +334,56 @@ router.post('/set-api-key', async (req, res) => {
   }
 
   const cleanKey = apiKey.trim();
+
+  // If user provided an OpenAI key in the general key box
+  if (cleanKey.startsWith('sk-')) {
+    try {
+      await axios.post(
+        'https://api.openai.com/v1/chat/completions',
+        {
+          model: 'gpt-4o-mini',
+          messages: [{ role: 'user', content: 'Say OK' }],
+          max_tokens: 5,
+        },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${cleanKey}`,
+          },
+          timeout: 9000,
+        }
+      );
+      process.env.OPENAI_API_KEY = cleanKey;
+      persistEnvKey('OPENAI_API_KEY', cleanKey);
+      return res.json({
+        success: true,
+        message: 'OpenAI API Key successfully verified and activated! ChatGPT (GPT-4o Mini) is online.',
+        model: 'gpt-4o-mini',
+        label: 'OpenAI ChatGPT (GPT-4o Mini)',
+        provider: 'openai',
+      });
+    } catch (err) {
+      const errCode = err.response?.data?.error?.code;
+      const errMsg = err.response?.data?.error?.message || err.message;
+      if (err.response?.status === 429 && (errCode === 'credit_balance_exhausted' || errCode === 'insufficient_quota')) {
+        process.env.OPENAI_API_KEY = cleanKey;
+        persistEnvKey('OPENAI_API_KEY', cleanKey);
+        return res.json({
+          success: true,
+          status: 'quota_exhausted',
+          warning: 'OpenAI key authenticated successfully! Quota is currently exhausted (429). Saved to .env — will activate automatically once billing credits are replenished. Gemini / AniChat engine will handle chats seamlessly in the meantime.',
+          message: 'OpenAI API Key authenticated and configured!',
+          model: 'gpt-4o-mini',
+          label: 'OpenAI ChatGPT (Quota Exhausted)',
+          provider: 'openai',
+        });
+      }
+      return res.status(400).json({
+        success: false,
+        error: `OpenAI verification failed: ${errMsg}`,
+      });
+    }
+  }
 
   // Test the key against Google Gemini API with gemini-3.5-flash-lite
   try {
@@ -334,31 +406,15 @@ router.post('/set-api-key', async (req, res) => {
     process.env.GOOGLE_API_KEY = cleanKey;
 
     // Persist to server/.env
-    try {
-      const envPath = path.resolve(__dirname, '../.env');
-      if (fs.existsSync(envPath)) {
-        let envContent = fs.readFileSync(envPath, 'utf8');
-        if (/GEMINI_API_KEY=.*/.test(envContent)) {
-          envContent = envContent.replace(/GEMINI_API_KEY=.*/g, `GEMINI_API_KEY=${cleanKey}`);
-        } else {
-          envContent += `\nGEMINI_API_KEY=${cleanKey}`;
-        }
-        if (/GOOGLE_API_KEY=.*/.test(envContent)) {
-          envContent = envContent.replace(/GOOGLE_API_KEY=.*/g, `GOOGLE_API_KEY=${cleanKey}`);
-        } else {
-          envContent += `\nGOOGLE_API_KEY=${cleanKey}`;
-        }
-        fs.writeFileSync(envPath, envContent, 'utf8');
-      }
-    } catch (fsErr) {
-      console.warn('Could not persist key to .env file:', fsErr.message);
-    }
+    persistEnvKey('GEMINI_API_KEY', cleanKey);
+    persistEnvKey('GOOGLE_API_KEY', cleanKey);
 
     return res.json({
       success: true,
       message: 'Google Gemini API Key successfully verified and activated! AniChat is upgraded with real-time AI.',
       model: 'gemini-3.5-flash-lite',
       label: 'Google Gemini 3.5 Flash ⚡',
+      provider: 'gemini',
     });
   } catch (err) {
     const errMsg = err.response?.data?.error?.message || err.message;
@@ -368,6 +424,77 @@ router.post('/set-api-key', async (req, res) => {
     });
   }
 });
+
+// Set / Update OpenAI API Key
+router.post('/set-openai-key', async (req, res) => {
+  const { apiKey } = req.body;
+  if (!apiKey || typeof apiKey !== 'string' || !apiKey.trim()) {
+    return res.status(400).json({ success: false, error: 'OpenAI API key is required.' });
+  }
+
+  const cleanKey = apiKey.trim();
+
+  try {
+    const testRes = await axios.post(
+      'https://api.openai.com/v1/chat/completions',
+      {
+        model: 'gpt-4o-mini',
+        messages: [{ role: 'user', content: 'Say OK' }],
+        max_tokens: 5,
+      },
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${cleanKey}`,
+        },
+        timeout: 9000,
+      }
+    );
+
+    const testOutput = testRes.data?.choices?.[0]?.message?.content;
+    if (!testOutput) {
+      throw new Error('OpenAI API did not return text output.');
+    }
+
+    process.env.OPENAI_API_KEY = cleanKey;
+    persistEnvKey('OPENAI_API_KEY', cleanKey);
+
+    return res.json({
+      success: true,
+      status: 'active',
+      message: 'OpenAI API Key successfully verified and activated! ChatGPT (GPT-4o Mini) is live in AniChat.',
+      model: 'gpt-4o-mini',
+      label: 'OpenAI ChatGPT (GPT-4o Mini)',
+      provider: 'openai',
+    });
+  } catch (err) {
+    const errorData = err.response?.data?.error;
+    const errCode = errorData?.code || '';
+    const errMsg = errorData?.message || err.message;
+
+    // Check if key is authenticated but billing quota is exhausted
+    if (err.response?.status === 429 && (errCode === 'credit_balance_exhausted' || errCode === 'insufficient_quota')) {
+      process.env.OPENAI_API_KEY = cleanKey;
+      persistEnvKey('OPENAI_API_KEY', cleanKey);
+
+      return res.json({
+        success: true,
+        status: 'quota_exhausted',
+        warning: 'Key authenticated with OpenAI! Current billing credit balance is exhausted (429: credit_balance_exhausted). Key is saved and will automatically activate once credits are added at platform.openai.com. In the meantime, Gemini / AniChat engine will answer seamlessly.',
+        message: 'OpenAI API Key authenticated and configured!',
+        model: 'gpt-4o-mini',
+        label: 'OpenAI ChatGPT (Quota Exhausted)',
+        provider: 'openai',
+      });
+    }
+
+    return res.status(400).json({
+      success: false,
+      error: `OpenAI verification failed: ${errMsg}`,
+    });
+  }
+});
+
 
 // Set / Update Tavily API Key and Tavily MCP URL
 router.post('/set-tavily-key', async (req, res) => {
@@ -485,13 +612,12 @@ Broadcasting episodes for today are currently synchronizing or shifting to tonig
     }
   }
 
-  // Determine which API key to use
-  const geminiKey = (apiKey && (provider === 'gemini' || !apiKey.startsWith('sk-'))) 
-    ? apiKey 
-    : (process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || '');
-  const openaiKey = (apiKey && (provider === 'openai' || apiKey.startsWith('sk-'))) 
-    ? apiKey 
-    : (process.env.OPENAI_API_KEY || '');
+  // Determine which API keys to use (support explicit openaiApiKey / geminiApiKey as well as general apiKey)
+  const customGeminiKey = req.body.geminiApiKey || (!apiKey?.startsWith('sk-') ? apiKey : '');
+  const customOpenAiKey = req.body.openaiApiKey || req.body.openAiApiKey || (apiKey?.startsWith('sk-') ? apiKey : '');
+
+  const geminiKey = customGeminiKey || process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || '';
+  const openaiKey = customOpenAiKey || process.env.OPENAI_API_KEY || '';
 
   // Pre-fetch today context for LLM if available
   const now = new Date();
@@ -539,7 +665,7 @@ Broadcasting episodes for today are currently synchronizing or shifting to tonig
   for (const h of rawHistory.slice(-20)) {
     if (!h.text || typeof h.text !== 'string' || !h.text.trim()) continue;
     // Skip the generic initial greeting
-    if (h.text.includes("Kon'nichiwa! I am AniChat 🍙 Pro") || h.text.includes("Kon'nichiwa! I am AniChat") || h.text.includes("Kon'nichiwa! I am AniChat")) continue;
+    if (h.text.includes("Kon'nichiwa! I am AniChat 🍙 Pro") || h.text.includes("Kon'nichiwa! I am AniChat")) continue;
 
     const role = (h.sender === 'user' || h.role === 'user') ? 'user' : 'model';
     // Strip previous model JSON recommendations block so it doesn't pollute Gemini prompt tokens
@@ -567,9 +693,94 @@ Broadcasting episodes for today are currently synchronizing or shifting to tonig
   }
 
   // ----------------------------------------------------
-  // ATTEMPT 1: Google Gemini AI (Official REST API)
+  // HELPER 1: OpenAI ChatGPT LLM Execution
   // ----------------------------------------------------
-  if (geminiKey && (provider === 'gemini' || provider === 'auto')) {
+  const executeOpenAi = async () => {
+    if (!openaiKey) return null;
+    try {
+      const openAiMessages = [
+        { role: 'system', content: systemPrompt },
+        ...sanitizedHistory.map((s) => ({
+          role: s.role === 'user' ? 'user' : 'assistant',
+          content: s.parts[0].text,
+        })),
+      ];
+
+      const oaiRes = await axios.post(
+        'https://api.openai.com/v1/chat/completions',
+        {
+          model: 'gpt-4o-mini',
+          messages: openAiMessages,
+          temperature: 0.7,
+          max_tokens: 1500,
+        },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${openaiKey}`,
+          },
+          timeout: 18000,
+        }
+      );
+
+      const rawText = oaiRes.data?.choices?.[0]?.message?.content || '';
+      if (!rawText) return null;
+
+      let cleanReply = rawText;
+      let extractedTitles = [];
+      const jsonMatch = rawText.match(/```json\s*(\{[\s\S]*?\})\s*```/);
+      if (jsonMatch) {
+        try {
+          const parsed = JSON.parse(jsonMatch[1]);
+          extractedTitles = parsed.recommendedTitles || parsed.titles || [];
+          cleanReply = rawText.replace(jsonMatch[0], '').trim();
+        } catch {}
+      }
+
+      let recCards = await searchAniListForTitles(extractedTitles);
+      if (recCards.length === 0 && anilistGrounding?.cards?.length > 0) {
+        recCards = anilistGrounding.cards;
+      }
+
+      const combinedSources = [
+        ...(anilistGrounding?.groundingInfo?.sources || []),
+        ...(tavilyGrounding?.groundingInfo?.sources || []),
+      ];
+
+      const modelLabel = anilistGrounding && tavilyGrounding
+        ? 'OpenAI ChatGPT (GPT-4o Mini) ⚡ (AniList 🍙 + Web Grounded 🌐)'
+        : anilistGrounding
+        ? 'OpenAI ChatGPT (GPT-4o Mini) ⚡ (AniList Grounded 🍙)'
+        : tavilyGrounding
+        ? 'OpenAI ChatGPT (GPT-4o Mini) ⚡ (Tavily Grounded 🌐)'
+        : 'OpenAI ChatGPT (GPT-4o Mini) ⚡';
+
+      return {
+        reply: cleanReply,
+        recommendations: recCards,
+        modelUsed: modelLabel,
+        provider: 'openai',
+        grounding: combinedSources.length > 0
+          ? { sources: combinedSources.slice(0, 8), provider: 'anilist_plus_web' }
+          : null,
+      };
+    } catch (oaiErr) {
+      const errCode = oaiErr.response?.data?.error?.code;
+      const errMsg = oaiErr.response?.data?.error?.message || oaiErr.message;
+      if (oaiErr.response?.status === 429 && (errCode === 'credit_balance_exhausted' || errCode === 'insufficient_quota')) {
+        console.warn('OpenAI quota exhausted (429), transitioning to secondary AI provider...');
+      } else {
+        console.warn('OpenAI completion error:', errMsg);
+      }
+      return null;
+    }
+  };
+
+  // ----------------------------------------------------
+  // HELPER 2: Google Gemini AI LLM Execution
+  // ----------------------------------------------------
+  const executeGemini = async () => {
+    if (!geminiKey) return null;
     const candidateModels = [
       { id: 'gemini-3.5-flash-lite', label: 'Google Gemini 3.5 Flash ⚡' },
       { id: 'gemini-flash-latest', label: 'Google Gemini Flash ⚡' },
@@ -634,9 +845,7 @@ Broadcasting episodes for today are currently synchronizing or shifting to tonig
           }
         }
       } catch (searchErr) {
-        const status = searchErr.response?.status;
-        const errMsg = searchErr.response?.data?.error?.message || searchErr.message;
-        console.info(`Google Search grounding on ${candidate.id} skipped [${status}: ${errMsg}], proceeding with Tavily grounded Gemini generation...`);
+        // Fallback to standard generation
       }
 
       // ATTEMPT B: Standard Gemini Generative Model (using Tavily grounded systemPrompt)
@@ -662,8 +871,6 @@ Broadcasting episodes for today are currently synchronizing or shifting to tonig
             rawText = geminiRes.data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
           } catch (geminiErr) {
             const status = geminiErr.response?.status;
-            const errMsg = geminiErr.response?.data?.error?.message || geminiErr.message;
-            console.warn(`Gemini API call on ${candidate.id} (attempt ${attempts}) failed [${status}]: ${errMsg}`);
             if ((status === 503 || status === 429) && attempts < 2) {
               await new Promise((r) => setTimeout(r, 600));
             } else {
@@ -705,7 +912,7 @@ Broadcasting episodes for today are currently synchronizing or shifting to tonig
           ? `${candidate.label} (Google Search Grounded 🌐)`
           : `${candidate.label} (Official API)`;
 
-        return res.json({
+        return {
           reply: cleanReply,
           recommendations: recCards,
           modelUsed: modelLabel,
@@ -713,84 +920,37 @@ Broadcasting episodes for today are currently synchronizing or shifting to tonig
           grounding: combinedSources.length > 0
             ? { sources: combinedSources.slice(0, 8), provider: 'anilist_plus_web' }
             : null,
-        });
+        };
       }
     }
-  }
+    return null;
+  };
 
   // ----------------------------------------------------
-  // ATTEMPT 2: OpenAI API (if configured)
+  // INTELLIGENT PROVIDER DISPATCH WITH SEAMLESS FALLBACK
   // ----------------------------------------------------
-  if (openaiKey && (provider === 'openai' || provider === 'auto')) {
-    try {
-      const openAiMessages = [
-        { role: 'system', content: systemPrompt },
-        ...sanitizedHistory.map((s) => ({
-          role: s.role === 'user' ? 'user' : 'assistant',
-          content: s.parts[0].text,
-        })),
-      ];
-
-      const oaiRes = await axios.post(
-        'https://api.openai.com/v1/chat/completions',
-        {
-          model: 'gpt-4o-mini',
-          messages: openAiMessages,
-          temperature: 0.7,
-          max_tokens: 1500,
-        },
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${openaiKey}`,
-          },
-          timeout: 18000,
-        }
-      );
-
-      const rawText = oaiRes.data?.choices?.[0]?.message?.content || '';
-      if (rawText) {
-        let cleanReply = rawText;
-        let extractedTitles = [];
-        const jsonMatch = rawText.match(/```json\s*(\{[\s\S]*?\})\s*```/);
-        if (jsonMatch) {
-          try {
-            const parsed = JSON.parse(jsonMatch[1]);
-            extractedTitles = parsed.recommendedTitles || parsed.titles || [];
-            cleanReply = rawText.replace(jsonMatch[0], '').trim();
-          } catch {}
-        }
-
-        let recCards = await searchAniListForTitles(extractedTitles);
-        if (recCards.length === 0 && anilistGrounding?.cards?.length > 0) {
-          recCards = anilistGrounding.cards;
-        }
-
-        const combinedSources = [
-          ...(anilistGrounding?.groundingInfo?.sources || []),
-          ...(tavilyGrounding?.groundingInfo?.sources || []),
-        ];
-
-        const modelLabel = anilistGrounding && tavilyGrounding
-          ? 'OpenAI GPT-4o Mini ⚡ (AniList 🍙 + Web Grounded 🌐)'
-          : anilistGrounding
-          ? 'OpenAI GPT-4o Mini ⚡ (AniList Grounded 🍙)'
-          : tavilyGrounding
-          ? 'OpenAI GPT-4o Mini ⚡ (Tavily Grounded 🌐)'
-          : 'OpenAI GPT-4o Mini ⚡';
-
-        return res.json({
-          reply: cleanReply,
-          recommendations: recCards,
-          modelUsed: modelLabel,
-          provider: 'openai',
-          grounding: combinedSources.length > 0
-            ? { sources: combinedSources.slice(0, 8), provider: 'anilist_plus_web' }
-            : null,
-        });
-      }
-    } catch (oaiErr) {
-      console.warn('OpenAI API call failed, using built-in brain:', oaiErr.message);
+  if (provider === 'openai') {
+    const oaiRes = await executeOpenAi();
+    if (oaiRes) return res.json(oaiRes);
+    // Fallback to Gemini if OpenAI quota is exhausted
+    const gemRes = await executeGemini();
+    if (gemRes) return res.json(gemRes);
+  } else if (provider === 'gemini') {
+    const gemRes = await executeGemini();
+    if (gemRes) return res.json(gemRes);
+    const oaiRes = await executeOpenAi();
+    if (oaiRes) return res.json(oaiRes);
+  } else {
+    // provider === 'auto':
+    // If OpenAI key is configured, attempt OpenAI first
+    if (openaiKey) {
+      const oaiRes = await executeOpenAi();
+      if (oaiRes) return res.json(oaiRes);
+    }
+    // Then attempt Gemini
+    if (geminiKey) {
+      const gemRes = await executeGemini();
+      if (gemRes) return res.json(gemRes);
     }
   }
 

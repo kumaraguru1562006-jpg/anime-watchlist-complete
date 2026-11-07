@@ -191,6 +191,11 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(payload),
     }),
+  setOpenAiApiKey: (payload) =>
+    authFetch('/chat/set-openai-key', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
   setTavilyApiKey: (payload) =>
     authFetch('/chat/set-tavily-key', {
       method: 'POST',
