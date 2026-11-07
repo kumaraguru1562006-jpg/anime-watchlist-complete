@@ -17,6 +17,7 @@ import { StatsModal } from './components/StatsModal';
 import { SearchModal } from './components/SearchModal';
 import { AniChatBot } from './components/AniChatBot';
 import { SharedWatchedViewModal } from './components/SharedWatchedViewModal';
+import { InstallAppPrompt } from './components/InstallAppPrompt';
 import { Database, Shield, Flame, AlertCircle } from 'lucide-react';
 
 class ErrorBoundary extends Component {
@@ -185,6 +186,9 @@ function MainLayout({ onGoToLogin }) {
       <SharedWatchedViewModal
         onOpenDetail={(id) => setSelectedAnimeId(id)}
       />
+
+      {/* Standalone Progressive Web App (PWA) Install Prompt */}
+      <InstallAppPrompt />
 
       {/* Footer */}
       <footer className="relative z-10 border-t border-white/10 bg-[#070913]/90 backdrop-blur-xl py-8 px-4 sm:px-6">

@@ -20,7 +20,8 @@ import {
   RefreshCw,
   Check,
   ShieldCheck,
-  Pin
+  Pin,
+  Smartphone
 } from 'lucide-react';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
@@ -251,6 +252,16 @@ export const LiquidGlassNavbar = ({
                 /
               </kbd>
             </button>
+
+            {/* Install App Button */}
+            <button
+              onClick={() => window.dispatchEvent(new CustomEvent('open-anicart-install'))}
+              title="Install AniCart App on your device (Phone/Desktop)"
+              className="flex items-center gap-1.5 px-2 sm:px-2.5 py-1 rounded-lg bg-gradient-to-r from-purple-600/30 to-cyan-500/20 hover:from-purple-600/50 hover:to-cyan-500/40 border border-purple-500/30 text-purple-200 hover:text-white text-[11px] font-medium transition-all group select-none"
+            >
+              <Smartphone className="w-3 h-3 text-cyan-300 group-hover:scale-110 transition-transform" />
+              <span className="hidden md:inline">Install App</span>
+            </button>
           </div>
 
           {/* Profile Picture: Click Directly to Open User Interface (No text, No navbar logout) */}
@@ -314,6 +325,23 @@ export const LiquidGlassNavbar = ({
               <span>{isSyncing ? 'Syncing...' : 'Sync Now'}</span>
             </button>
           </div>
+
+          {/* Install AniCart App button in mobile menu */}
+          <button
+            onClick={() => {
+              setIsMobileMenuOpen(false);
+              window.dispatchEvent(new CustomEvent('open-anicart-install'));
+            }}
+            className="w-full mb-2.5 px-3 py-2 rounded-xl bg-gradient-to-r from-purple-600/30 via-indigo-600/30 to-cyan-500/20 hover:from-purple-600/50 hover:to-cyan-500/30 border border-purple-500/40 text-xs font-semibold text-white flex items-center justify-between transition-all"
+          >
+            <div className="flex items-center gap-2">
+              <Smartphone className="w-4 h-4 text-cyan-300" />
+              <span>Install AniCart App</span>
+            </div>
+            <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
+              📲 1-Tap Install
+            </span>
+          </button>
 
           <div className="grid grid-cols-2 gap-2">
             {navItems.map((item) => {
