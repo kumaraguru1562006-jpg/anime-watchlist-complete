@@ -1,5 +1,5 @@
-// AniCart Service Worker v1.0.0
-const CACHE_NAME = 'anicart-cache-v1';
+// AniCart Service Worker v2.0.0
+const CACHE_NAME = 'anicart-cache-v2';
 const PRECACHE_URLS = [
   '/',
   '/index.html',
