@@ -1,5 +1,5 @@
-// AniCart Service Worker v8.0.0 (Demon Slayer Dark Glassy Cart Logo)
-const CACHE_NAME = 'anicart-cache-v8';
+// AniCart Service Worker v9.0.0 (Dark Blue Transparent Crystal Anime Cart Logo)
+const CACHE_NAME = 'anicart-cache-v9';
 const PRECACHE_URLS = [
   '/',
   '/index.html',
