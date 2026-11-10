@@ -156,10 +156,11 @@ export const LiquidGlassNavbar = ({
         >
           <div className="relative w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gradient-to-tr from-purple-600 via-indigo-500 to-cyan-400 p-[1.5px] transition-transform duration-300 group-hover:scale-105 shadow-md shadow-purple-500/25">
             <div className="w-full h-full bg-[#090d1e] rounded-[10px] flex items-center justify-center overflow-hidden relative">
-              <span className="font-heading font-black text-transparent bg-clip-text bg-gradient-to-tr from-purple-400 to-cyan-300 text-base sm:text-lg">
-                氣
-              </span>
-              <div className="absolute inset-0 bg-gradient-to-t from-purple-500/20 to-transparent pointer-events-none" />
+              <img 
+                src="/icon-192.png" 
+                alt="AniCart Logo" 
+                className="w-full h-full object-cover" 
+              />
             </div>
             <div className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-cyan-400 blur-[2px] animate-pulse" />
           </div>

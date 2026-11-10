@@ -1,12 +1,14 @@
-// AniCart Service Worker v2.0.0
-const CACHE_NAME = 'anicart-cache-v2';
+// AniCart Service Worker v3.0.0 (New App Logo & Icons)
+const CACHE_NAME = 'anicart-cache-v3';
 const PRECACHE_URLS = [
   '/',
   '/index.html',
   '/manifest.webmanifest',
   '/icon-192.png',
   '/icon-512.png',
-  '/icon.svg'
+  '/apple-touch-icon.png',
+  '/favicon.png',
+  '/favicon.ico'
 ];
 
 // Install: Pre-cache app shell assets

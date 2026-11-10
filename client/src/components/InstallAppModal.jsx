@@ -102,15 +102,9 @@ export const InstallAppModal = ({ isOpen, onClose }) => {
             <div className="w-full h-full bg-[#070913] rounded-[14px] flex items-center justify-center overflow-hidden">
               <img 
                 src="/icon-192.png" 
-                alt="AniCart" 
+                alt="AniCart App Logo" 
                 className="w-full h-full object-cover"
-                onError={(e) => {
-                  e.target.style.display = 'none';
-                }} 
               />
-              <span className="font-heading font-black text-transparent bg-clip-text bg-gradient-to-tr from-purple-400 to-cyan-300 text-2xl">
-                氣
-              </span>
             </div>
           </div>
           <div>

@@ -66,14 +66,12 @@ export const InstallAppPrompt = () => {
         >
           <div className="flex items-center gap-3">
             <div className="relative w-10 h-10 rounded-xl bg-gradient-to-tr from-purple-600 to-cyan-400 p-[1.5px] flex-shrink-0 shadow-md">
-              <div className="w-full h-full bg-[#070913] rounded-[9px] flex items-center justify-center">
+              <div className="w-full h-full bg-[#070913] rounded-[9px] flex items-center justify-center overflow-hidden">
                 <img 
                   src="/icon-192.png" 
-                  alt="AniCart" 
+                  alt="AniCart App Logo" 
                   className="w-full h-full object-cover" 
-                  onError={(e) => { e.target.style.display = 'none'; }} 
                 />
-                <span className="font-heading font-black text-cyan-300 text-sm">氣</span>
               </div>
             </div>
 
