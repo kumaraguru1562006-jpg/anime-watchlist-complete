@@ -1,5 +1,5 @@
-// AniCart Service Worker v6.0.0 (Professional Anime Cart Logo)
-const CACHE_NAME = 'anicart-cache-v6';
+// AniCart Service Worker v7.0.0 (Dark Glassy Theme Anime Cart Logo)
+const CACHE_NAME = 'anicart-cache-v7';
 const PRECACHE_URLS = [
   '/',
   '/index.html',
