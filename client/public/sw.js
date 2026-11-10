@@ -1,5 +1,5 @@
-// AniCart Service Worker v3.0.0 (New App Logo & Icons)
-const CACHE_NAME = 'anicart-cache-v3';
+// AniCart Service Worker v4.0.0 (New Light Color App Logo & Icons)
+const CACHE_NAME = 'anicart-cache-v4';
 const PRECACHE_URLS = [
   '/',
   '/index.html',
