@@ -66,7 +66,7 @@ export const InstallAppPrompt = () => {
         >
           <div className="flex items-center gap-3">
             <div className="relative w-10 h-10 rounded-xl bg-gradient-to-tr from-rose-600 via-violet-600 to-red-500 p-[1.5px] flex-shrink-0 shadow-md shadow-rose-950/40 logo-2d-animated">
-              <div className="w-full h-full bg-[#070913] rounded-[9px] flex items-center justify-center overflow-hidden">
+              <div className="w-full h-full bg-transparent rounded-[9px] flex items-center justify-center overflow-hidden">
                 <img 
                   src="/icon-192.png" 
                   alt="AniCart App Logo" 

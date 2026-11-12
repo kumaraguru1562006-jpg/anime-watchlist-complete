@@ -99,7 +99,7 @@ export const InstallAppModal = ({ isOpen, onClose }) => {
         {/* Header with App Icon */}
         <div className="flex items-center gap-4 mb-6">
           <div className="relative w-14 h-14 rounded-2xl bg-gradient-to-tr from-rose-600 via-violet-600 to-red-500 p-[2px] shadow-xl shadow-rose-950/50 flex-shrink-0 logo-2d-animated">
-            <div className="w-full h-full bg-[#070913] rounded-[14px] flex items-center justify-center overflow-hidden">
+            <div className="w-full h-full bg-transparent rounded-[14px] flex items-center justify-center overflow-hidden">
               <img 
                 src="/icon-192.png" 
                 alt="AniCart App Logo" 

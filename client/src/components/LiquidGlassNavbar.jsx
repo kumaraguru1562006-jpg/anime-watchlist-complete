@@ -155,7 +155,7 @@ export const LiquidGlassNavbar = ({
           className="flex items-center gap-2 cursor-pointer group select-none flex-shrink-0"
         >
           <div className="relative w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gradient-to-tr from-rose-600 via-violet-600 to-red-500 p-[1.5px] transition-transform duration-300 group-hover:scale-110 group-hover:rotate-3 shadow-lg shadow-rose-500/30 logo-2d-animated">
-            <div className="w-full h-full bg-[#090d1e] rounded-[10px] flex items-center justify-center overflow-hidden relative">
+            <div className="w-full h-full bg-transparent rounded-[10px] flex items-center justify-center overflow-hidden relative">
               <img 
                 src="/icon-192.png" 
                 alt="AniCart Logo" 

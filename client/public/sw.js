@@ -1,5 +1,5 @@
-// AniCart Service Worker v12.0.0 (2D Animation Anime Red & Violet Logo)
-const CACHE_NAME = 'anicart-cache-v12';
+// AniCart Service Worker v13.0.0 (2D Anime Mini Posters Snacks Cart Logo)
+const CACHE_NAME = 'anicart-cache-v13';
 const PRECACHE_URLS = [
   '/',
   '/index.html',
