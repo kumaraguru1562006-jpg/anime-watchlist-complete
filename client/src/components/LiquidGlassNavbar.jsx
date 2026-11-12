@@ -154,7 +154,7 @@ export const LiquidGlassNavbar = ({
           onClick={() => setActiveTab('news')}
           className="flex items-center gap-2 cursor-pointer group select-none flex-shrink-0"
         >
-          <div className="relative w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gradient-to-tr from-rose-600 via-violet-600 to-red-500 p-[1.5px] transition-transform duration-300 group-hover:scale-110 group-hover:rotate-3 shadow-lg shadow-rose-500/30 logo-2d-animated">
+          <div className="relative w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gradient-to-tr from-blue-600 via-indigo-500 to-red-500 p-[1.5px] transition-transform duration-300 group-hover:scale-110 group-hover:rotate-3 shadow-lg shadow-blue-500/30 logo-2d-animated">
             <div className="w-full h-full bg-transparent rounded-[10px] flex items-center justify-center overflow-hidden relative">
               <img 
                 src="/icon-192.png" 
@@ -162,15 +162,15 @@ export const LiquidGlassNavbar = ({
                 className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" 
               />
             </div>
-            <div className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-rose-500 blur-[2px] animate-pulse" />
+            <div className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-red-500 blur-[2px] animate-pulse" />
           </div>
 
           <div className="flex flex-col">
             <div className="flex items-center gap-1">
-              <span className="font-heading font-extrabold text-sm sm:text-base tracking-tight bg-gradient-to-r from-white via-rose-100 to-violet-300 bg-clip-text text-transparent">
+              <span className="font-heading font-extrabold text-sm sm:text-base tracking-tight bg-gradient-to-r from-white via-blue-100 to-red-200 bg-clip-text text-transparent">
                 AniCart
               </span>
-              <span className="hidden xs:inline-block text-[9px] font-mono px-1.5 py-0.2 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/30 font-semibold">
+              <span className="hidden xs:inline-block text-[9px] font-mono px-1.5 py-0.2 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30 font-semibold">
                 Live
               </span>
             </div>
