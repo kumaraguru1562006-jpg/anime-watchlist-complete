@@ -62,10 +62,10 @@ export const InstallAppPrompt = () => {
       {showBanner && !isStandalone && (
         <div 
           onClick={() => setIsOpen(true)}
-          className="fixed bottom-4 left-4 right-4 sm:left-auto sm:right-6 sm:w-96 z-40 p-3 rounded-2xl bg-[#0e142b]/95 border border-purple-500/40 shadow-2xl shadow-purple-950/80 backdrop-blur-xl cursor-pointer hover:border-cyan-400/50 transition-all duration-300 animate-in slide-in-from-bottom-5"
+          className="fixed bottom-4 left-4 right-4 sm:left-auto sm:right-6 sm:w-96 z-40 p-3 rounded-2xl bg-[#0e142b]/95 border border-rose-500/40 shadow-2xl shadow-rose-950/80 backdrop-blur-xl cursor-pointer hover:border-violet-400/50 transition-all duration-300 animate-in slide-in-from-bottom-5"
         >
           <div className="flex items-center gap-3">
-            <div className="relative w-10 h-10 rounded-xl bg-gradient-to-tr from-purple-600 to-cyan-400 p-[1.5px] flex-shrink-0 shadow-md">
+            <div className="relative w-10 h-10 rounded-xl bg-gradient-to-tr from-rose-600 via-violet-600 to-red-500 p-[1.5px] flex-shrink-0 shadow-md shadow-rose-950/40 logo-2d-animated">
               <div className="w-full h-full bg-[#070913] rounded-[9px] flex items-center justify-center overflow-hidden">
                 <img 
                   src="/icon-192.png" 

@@ -1,5 +1,5 @@
-// AniCart Service Worker v11.0.0 (Luxury Dark Sapphire Crystal Glass Logo)
-const CACHE_NAME = 'anicart-cache-v11';
+// AniCart Service Worker v12.0.0 (2D Animation Anime Red & Violet Logo)
+const CACHE_NAME = 'anicart-cache-v12';
 const PRECACHE_URLS = [
   '/',
   '/index.html',
