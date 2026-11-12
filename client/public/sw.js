@@ -1,5 +1,5 @@
-// AniCart Service Worker v9.0.0 (Dark Blue Transparent Crystal Anime Cart Logo)
-const CACHE_NAME = 'anicart-cache-v9';
+// AniCart Service Worker v10.0.0 (Bottom Day-to-Day Airing Navigation)
+const CACHE_NAME = 'anicart-cache-v10';
 const PRECACHE_URLS = [
   '/',
   '/index.html',

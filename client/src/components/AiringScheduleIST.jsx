@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   Clock, 
   Sparkles, 
@@ -8,17 +8,20 @@ import {
   Tv, 
   Star, 
   Play, 
-  Globe,
-  Layers,
-  Search,
-  Calendar,
-  ChevronRight,
-  Flame,
-  LayoutGrid,
-  ListFilter,
-  X,
-  Pin,
-  ArrowLeft
+  Globe, 
+  Layers, 
+  Search, 
+  Calendar, 
+  ChevronLeft,
+  ChevronRight, 
+  Flame, 
+  LayoutGrid, 
+  ListFilter, 
+  X, 
+  Pin, 
+  ArrowLeft,
+  ArrowRight,
+  ArrowUp
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { api } from '../services/api';
@@ -59,11 +62,65 @@ export const AiringScheduleIST = ({ onOpenDetail }) => {
   const [actionDone, setActionDone] = useState({});
 
   const DAYS_ORDER = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+  const scheduleTopRef = useRef(null);
 
   // Current weekday in Indian Standard Time
   const todayDayIST = useMemo(() => {
     return new Date().toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', weekday: 'long' });
   }, []);
+
+  // Tomorrow and Yesterday in Indian Standard Time
+  const tomorrowDayIST = useMemo(() => {
+    const d = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+    d.setDate(d.getDate() + 1);
+    return d.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', weekday: 'long' });
+  }, []);
+
+  const yesterdayDayIST = useMemo(() => {
+    const d = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+    d.setDate(d.getDate() - 1);
+    return d.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', weekday: 'long' });
+  }, []);
+
+  // Adjacent days calculation for Next / Previous buttons
+  const currentDayIndex = useMemo(() => {
+    return DAYS_ORDER.indexOf(selectedDay);
+  }, [selectedDay]);
+
+  const prevDay = useMemo(() => {
+    if (currentDayIndex === -1) return yesterdayDayIST;
+    return currentDayIndex > 0 ? DAYS_ORDER[currentDayIndex - 1] : DAYS_ORDER[DAYS_ORDER.length - 1];
+  }, [currentDayIndex, yesterdayDayIST]);
+
+  const nextDay = useMemo(() => {
+    if (currentDayIndex === -1) return tomorrowDayIST;
+    return currentDayIndex < DAYS_ORDER.length - 1 ? DAYS_ORDER[currentDayIndex + 1] : DAYS_ORDER[0];
+  }, [currentDayIndex, tomorrowDayIST]);
+
+  const getDayLabel = (day) => {
+    if (!day) return '';
+    if (day.toLowerCase() === todayDayIST.toLowerCase()) return `Today (${day})`;
+    if (day.toLowerCase() === tomorrowDayIST.toLowerCase()) return `Tomorrow (${day})`;
+    if (day.toLowerCase() === yesterdayDayIST.toLowerCase()) return `Yesterday (${day})`;
+    return day;
+  };
+
+  const handleSwitchDay = (targetDay) => {
+    setSelectedDay(targetDay);
+    setTimeout(() => {
+      if (scheduleTopRef.current) {
+        scheduleTopRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }, 60);
+  };
+
+  const scrollToTop = () => {
+    if (scheduleTopRef.current) {
+      scheduleTopRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
 
   const [hasSearched, setHasSearched] = useState(false);
 
@@ -505,7 +562,7 @@ export const AiringScheduleIST = ({ onOpenDetail }) => {
       )}
 
       {/* Main Header */}
-      <div className="space-y-4">
+      <div ref={scheduleTopRef} className="space-y-4 scroll-mt-28">
         <div>
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-300 text-xs font-mono mb-2">
             <Calendar className="w-3.5 h-3.5 text-purple-400" />
@@ -624,6 +681,21 @@ export const AiringScheduleIST = ({ onOpenDetail }) => {
               <span>Today ({todayDayIST})</span>
               <span className="px-1.5 py-0.2 rounded-md text-[10px] font-mono bg-black/40 text-emerald-200">
                 {dayCounts[todayDayIST] || 0}
+              </span>
+            </button>
+
+            {/* Quick Filter: Tomorrow's IST Broadcasts */}
+            <button
+              onClick={() => setSelectedDay(tomorrowDayIST)}
+              className={`px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all duration-200 select-none flex items-center gap-1.5 ${
+                selectedDay === tomorrowDayIST
+                  ? 'bg-gradient-to-r from-purple-600 to-cyan-600 text-white shadow-lg shadow-purple-600/30 border border-cyan-400/40'
+                  : 'bg-purple-500/15 hover:bg-purple-500/25 text-purple-300 border border-purple-500/30'
+              }`}
+            >
+              <span>Tomorrow ({tomorrowDayIST})</span>
+              <span className="px-1.5 py-0.2 rounded-md text-[10px] font-mono bg-black/40 text-purple-200">
+                {dayCounts[tomorrowDayIST] || 0}
               </span>
             </button>
 
@@ -772,6 +844,46 @@ export const AiringScheduleIST = ({ onOpenDetail }) => {
               </section>
             );
           })}
+
+          {/* Bottom Quick Day Jump Bar for All Days View */}
+          <div className="mt-8 pt-6 border-t border-white/10 flex flex-col sm:flex-row items-center justify-between gap-3 bg-[#0d1226]/90 backdrop-blur-md p-4 sm:p-5 rounded-2xl border border-purple-500/25 shadow-xl shadow-purple-950/30">
+            <div className="flex items-center gap-2">
+              <Calendar className="w-4 h-4 text-purple-400" />
+              <span className="text-xs text-slate-300 font-medium">Quick Day Filters:</span>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-end">
+              <button
+                onClick={() => handleSwitchDay(todayDayIST)}
+                className="px-3.5 py-2.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-300 text-xs font-semibold flex items-center gap-1.5 transition-all shadow-sm"
+              >
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                <span>Today ({todayDayIST})</span>
+                <span className="px-1.5 py-0.2 rounded bg-black/40 text-emerald-200 text-[10px] font-mono">
+                  {dayCounts[todayDayIST] || 0}
+                </span>
+              </button>
+
+              <button
+                onClick={() => handleSwitchDay(tomorrowDayIST)}
+                className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 via-indigo-600 to-cyan-600 hover:from-purple-500 hover:to-cyan-500 text-white text-xs font-semibold flex items-center gap-1.5 shadow-md shadow-purple-900/40 transition-all hover:scale-[1.02]"
+              >
+                <span>Tomorrow ({tomorrowDayIST})</span>
+                <span className="px-1.5 py-0.2 rounded bg-black/40 text-cyan-200 text-[10px] font-mono">
+                  {dayCounts[tomorrowDayIST] || 0}
+                </span>
+                <ChevronRight className="w-3.5 h-3.5 text-cyan-300" />
+              </button>
+
+              <button
+                onClick={scrollToTop}
+                className="px-3.5 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 hover:text-white text-xs font-medium flex items-center gap-1.5 transition-all group"
+                title="Scroll to top of schedule"
+              >
+                <ArrowUp className="w-3.5 h-3.5 text-cyan-400 group-hover:-translate-y-1 transition-transform" />
+                <span>Back to Top</span>
+              </button>
+            </div>
+          </div>
         </div>
       ) : (
         /* =========================================================
@@ -824,6 +936,84 @@ export const AiringScheduleIST = ({ onOpenDetail }) => {
               {(dayWiseGroups[selectedDay] || []).map(renderAnimeCard)}
             </div>
           )}
+
+          {/* Bottom Day-to-Day Navigation Bar (Previous & Next Day) */}
+          <div className="mt-8 pt-6 border-t border-white/10 flex flex-col sm:flex-row items-center justify-between gap-3 bg-[#0d1226]/90 backdrop-blur-md p-4 sm:p-5 rounded-2xl border border-purple-500/25 shadow-xl shadow-purple-950/30">
+            {/* Previous Day Button */}
+            <button
+              onClick={() => handleSwitchDay(prevDay)}
+              className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 hover:border-purple-400/40 text-slate-200 hover:text-white text-xs font-semibold flex items-center justify-between sm:justify-start gap-3 transition-all group"
+              title={`View ${prevDay} Airing Schedule`}
+            >
+              <div className="p-1.5 rounded-lg bg-black/40 text-purple-400 group-hover:-translate-x-1 transition-transform">
+                <ChevronLeft className="w-4 h-4" />
+              </div>
+              <div className="text-left">
+                <div className="text-[10px] text-slate-400 uppercase tracking-wider font-mono">
+                  {prevDay.toLowerCase() === yesterdayDayIST.toLowerCase() ? 'Yesterday' : 'Previous Day'}
+                </div>
+                <div className="flex items-center gap-1.5 font-bold text-white text-xs">
+                  <span>{getDayLabel(prevDay)}</span>
+                  <span className="text-[10px] px-1.5 py-0.2 rounded bg-black/50 text-slate-400 font-mono">
+                    {dayCounts[prevDay] || 0} Shows
+                  </span>
+                </div>
+              </div>
+            </button>
+
+            {/* Center Quick Switchers: Back to Top & All Days */}
+            <div className="flex items-center gap-2 w-full sm:w-auto justify-center">
+              <button
+                onClick={() => handleSwitchDay('all_day_wise')}
+                className="px-3.5 py-2.5 rounded-xl bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/25 text-purple-300 hover:text-white text-xs font-semibold transition-all flex items-center gap-1.5"
+                title="View All Days Day-Wise"
+              >
+                <LayoutGrid className="w-3.5 h-3.5" />
+                <span>All Days</span>
+              </button>
+
+              <button
+                onClick={scrollToTop}
+                className="px-3.5 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 hover:text-white text-xs font-medium transition-all flex items-center gap-1.5 group"
+                title="Scroll back to top of lineup"
+              >
+                <ArrowUp className="w-3.5 h-3.5 text-cyan-400 group-hover:-translate-y-1 transition-transform" />
+                <span>Back to Top</span>
+              </button>
+            </div>
+
+            {/* Next Day Button (Specially highlighted if Tomorrow) */}
+            <button
+              onClick={() => handleSwitchDay(nextDay)}
+              className={`w-full sm:w-auto px-5 py-2.5 rounded-xl border text-xs font-semibold flex items-center justify-between sm:justify-end gap-3 transition-all group shadow-lg ${
+                nextDay.toLowerCase() === tomorrowDayIST.toLowerCase()
+                  ? 'bg-gradient-to-r from-purple-600 via-indigo-600 to-cyan-600 hover:from-purple-500 hover:to-cyan-500 text-white border-cyan-400/50 shadow-purple-900/40 hover:scale-[1.02]'
+                  : 'bg-white/5 hover:bg-white/10 border-white/10 hover:border-purple-400/40 text-slate-200 hover:text-white'
+              }`}
+              title={`View ${nextDay} Airing Schedule`}
+            >
+              <div className="text-left sm:text-right">
+                <div className={`text-[10px] uppercase tracking-wider font-mono ${
+                  nextDay.toLowerCase() === tomorrowDayIST.toLowerCase() ? 'text-cyan-200 font-bold' : 'text-slate-400'
+                }`}>
+                  {nextDay.toLowerCase() === tomorrowDayIST.toLowerCase() ? 'Up Next: Tomorrow' : 'Next Day'}
+                </div>
+                <div className="flex items-center justify-start sm:justify-end gap-1.5 font-bold text-white text-xs">
+                  <span>{getDayLabel(nextDay)}</span>
+                  <span className="text-[10px] px-1.5 py-0.2 rounded bg-black/50 text-cyan-200 font-mono">
+                    {dayCounts[nextDay] || 0} Shows
+                  </span>
+                </div>
+              </div>
+              <div className={`p-1.5 rounded-lg transition-transform group-hover:translate-x-1 ${
+                nextDay.toLowerCase() === tomorrowDayIST.toLowerCase()
+                  ? 'bg-black/30 text-cyan-300'
+                  : 'bg-black/40 text-purple-400'
+              }`}>
+                <ChevronRight className="w-4 h-4" />
+              </div>
+            </button>
+          </div>
         </div>
       )}
 
