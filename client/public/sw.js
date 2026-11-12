@@ -1,5 +1,5 @@
-// AniCart Service Worker v10.0.0 (Bottom Day-to-Day Airing Navigation)
-const CACHE_NAME = 'anicart-cache-v10';
+// AniCart Service Worker v11.0.0 (Luxury Dark Sapphire Crystal Glass Logo)
+const CACHE_NAME = 'anicart-cache-v11';
 const PRECACHE_URLS = [
   '/',
   '/index.html',
